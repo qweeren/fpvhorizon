@@ -1,0 +1,10 @@
+[package]
+name = "fpvhorizon"
+version = "1.0.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+
+# tools/standalone.rs exposes core modules for `cargo test`.
+[lib]
+path = "tools/standalone.rs"
