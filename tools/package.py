@@ -9,6 +9,7 @@ the commits and the hook points' version) and the bundle's .rs and .toml files.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -100,15 +101,90 @@ def main() -> int:
     print(f"wrote {out} ({out.stat().st_size} bytes, {len(files)} files, {mod_id} {version})")
 
     if args.install is not None:
-        game = Path(args.install) if args.install else Path(os.environ["APPDATA"]) / "horizon"
-        if not game.is_dir():
-            print(f"no game folder at {game}", file=sys.stderr)
+        target_dirs = []
+        if args.install:
+            target_dirs.append(Path(args.install))
+        else:
+            default_game = Path(os.environ["APPDATA"]) / "horizon"
+            if default_game.is_dir():
+                target_dirs.append(default_game)
+            fork_game = Path(os.environ["APPDATA"]) / "horizon-fork-arismoko" / "game"
+            if fork_game.is_dir():
+                target_dirs.append(fork_game)
+
+        if not target_dirs:
+            print("no game folder found to install into", file=sys.stderr)
             return 1
-        target = game / "horizon-native-mods"
-        target.mkdir(exist_ok=True)
-        shutil.copyfile(out, target / out.name)
-        print(f"installed {target / out.name}")
+
+        for game in target_dirs:
+            install_to_instance(game, out, mod_id, version, compat["horizon_revision"])
     return 0
+
+
+def install_to_instance(game: Path, out: Path, mod_id: str, version: str, horizon_rev: str):
+    target = game / "horizon-native-mods"
+    target.mkdir(exist_ok=True)
+    dst = target / out.name
+    shutil.copyfile(out, dst)
+    print(f"installed {dst}")
+
+    # 1. SHA-256 digest
+    with open(dst, "rb") as f:
+        digest_raw = hashlib.sha256(f.read()).hexdigest()
+    digest = f"SHA-256:{digest_raw}"
+
+    # 2. Write origin.json for launcher native mod discovery
+    origin_path = target / f"{mod_id}.origin.json"
+    origin_data = {
+        "id": mod_id,
+        "version": version,
+        "owner": "local",
+        "repo": mod_id,
+        "tag": f"v{version}",
+        "commit": horizon_rev,
+        "asset": out.name,
+        "sha256": digest_raw,
+    }
+    origin_path.write_text(json.dumps(origin_data, indent=2) + "\n", encoding="utf-8")
+    print(f"wrote {origin_path}")
+
+    # 3. Register in mod-browser.json if present
+    mb_path = game / "mod-browser.json"
+    if mb_path.is_file():
+        try:
+            mb = json.loads(mb_path.read_text(encoding="utf-8"))
+            entries = [e for e in mb.get("entries", []) if e.get("project") != mod_id]
+            entries.append({
+                "source": "horizon",
+                "project": mod_id,
+                "slug": mod_id,
+                "title": "FPV Drone",
+                "kind": "mod",
+                "version": version,
+                "number": version,
+                "file": f"horizon-native-mods/{out.name}",
+                "checksum": digest,
+                "page": "https://github.com/fpvhorizon",
+                "dependency": False,
+                "verdict": "Verified",
+            })
+            mb["entries"] = entries
+            mb_path.write_text(json.dumps(mb, indent=2) + "\n", encoding="utf-8")
+            print(f"registered in {mb_path}")
+        except Exception as e:
+            print(f"warning: could not update mod-browser.json: {e}", file=sys.stderr)
+
+    # 4. Enable in horizon-mods.txt
+    mods_txt = game / "horizon-mods.txt"
+    lines = []
+    if mods_txt.is_file():
+        lines = [l.strip() for l in mods_txt.read_text(encoding="utf-8").splitlines() if l.strip()]
+    toggle_key = f"mod.{mod_id}:true"
+    if toggle_key not in lines:
+        lines = [l for l in lines if not l.startswith(f"mod.{mod_id}:")]
+        lines.append(toggle_key)
+        mods_txt.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"enabled in {mods_txt}")
 
 
 MOD_LINE = re.compile(r"^(\s*)(pub(?:\([^)]*\))? )?mod (\w+);\s*$")
