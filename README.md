@@ -72,7 +72,7 @@ Push a tag matching the version in `hmod/horizon-mod.toml` (for example `v2.0.0`
 
 ## Credits
 
-The flight physics, drone builds, rates and controller logic in `core/` started as a Rust port of the [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) mod by its authors, licensed under GPL-3.0. FPV Horizon has since been rebuilt for Horizon with its own models, sounds, OSD, presets and gamepad support.
+The flight physics, drone builds, rates and controller logic in `core/` started as a Rust port of the [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) mod by its authors, licensed under GPL-3.0. FPV Horizon adapts and extends that work for Horizon.
 
 ## Licence
 
