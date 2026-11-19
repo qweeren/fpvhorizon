@@ -1,5 +1,5 @@
 // Drone hardware specification and physical dimensions.
-// Direct port of DroneBuild.java.
+// Based on DroneBuild.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
 
 use std::f32::consts::PI;
 

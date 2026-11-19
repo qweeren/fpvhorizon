@@ -1,5 +1,5 @@
 // Advanced physics engine for quadcopter aerodynamics, motor thermodynamics, and dynamics.
-// Direct port of AdvancedPhysicsCore.java.
+// Based on AdvancedPhysicsCore.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
 
 use super::build::{BuildParam, DroneBuildConfig};
 use super::math::{Quat, Vec3f};

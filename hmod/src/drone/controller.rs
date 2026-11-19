@@ -1,5 +1,5 @@
 // Betaflight rate model, stick shaping, and flight control inputs.
-// Port of DroneController.java and VirtualJoystick.java.
+// Based on DroneController.java and VirtualJoystick.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlAxis {

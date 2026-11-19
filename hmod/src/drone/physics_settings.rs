@@ -1,5 +1,5 @@
 // Physical environment and motor thermal coefficients.
-// Direct port of PhysicsSettings.java.
+// Based on PhysicsSettings.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PhysicsParam {

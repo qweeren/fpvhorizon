@@ -1,5 +1,5 @@
 // Collision resolution and elastic bounce physics for FPV drone.
-// Direct port of DroneCollision.java.
+// Based on DroneCollision.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
 
 use super::math::Vec3f;
 

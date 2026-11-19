@@ -47,6 +47,7 @@ SHA-256, and every native version is reviewed again.
 ## Conventions
 
 - Mod id and asset namespace: `fpvhorizon`. Display name: FPV Horizon.
-- GPL-3.0-only. Keep the credit to [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client), which the physics
-  core was ported from; the registry's policy requires it.
+- GPL-3.0-only. FPV Horizon is its own mod, not a port. Its physics code is based on
+  [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) (GPL-3.0): keep that credit at the bottom of the README
+  and in the drone files' headers; the GPL requires it. Don't call the project a port.
 - Mobile (Starling) is planned for when Starling reads native `.hmod`s; see `ROADMAP.md`.

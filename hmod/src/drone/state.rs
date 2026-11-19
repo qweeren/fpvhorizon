@@ -1,5 +1,5 @@
 // The drone in the world: spawned on the ground, armed, flown, crashed and reset.
-// The flight model is a port of DroneState.java and DroneClientEvents.java.
+// The flight model is based on DroneState.java and DroneClientEvents.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
 
 use super::build::{BuildParam, DroneBuildConfig};
 use super::collision;

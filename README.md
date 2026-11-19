@@ -74,7 +74,7 @@ Without pushing a tag: Actions > Build > Run workflow on `master` with **release
 
 ## Credits
 
-The flight physics, drone builds, rates and controller logic in `hmod/src/drone/` started as a Rust port of the [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) mod by its authors, licensed under GPL-3.0. FPV Horizon adapts and extends that work for Horizon.
+FPV Horizon's flight physics, drone build model, rates and controller logic (`hmod/src/drone/`) are based on code from [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) by its authors, used under GPL-3.0.
 
 ## Licence
 

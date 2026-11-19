@@ -1,5 +1,5 @@
 // FPV Horizon HUD gimbal overlays (Betaflight style stick displays).
-// Port of DroneHud.java.
+// Based on DroneHud.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
 
 pub const BOX_SIZE: i32 = 56;
 pub const MARGIN_X: i32 = 14;
