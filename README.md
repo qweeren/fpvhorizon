@@ -70,6 +70,8 @@ python tools/package.py --install
 
 Push a tag matching the version in `hmod/horizon-mod.toml` (for example `v0.9.0`). GitHub Actions builds the `.hmod` with `cargo horizon-mod build`, runs `cargo horizon-mod check` on it, and attaches it to a GitHub Release with its SHA-256. `0.x` versions are marked as pre-releases.
 
+Without pushing a tag: Actions > Build > Run workflow on `master` with **release** ticked creates the `v<version>` tag on that commit and publishes the same release. It refuses a version that is already released.
+
 ## Credits
 
 The flight physics, drone builds, rates and controller logic in `hmod/src/drone/` started as a Rust port of the [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) mod by its authors, licensed under GPL-3.0. FPV Horizon adapts and extends that work for Horizon.
