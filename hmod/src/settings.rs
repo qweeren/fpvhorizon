@@ -4,14 +4,14 @@
 use crate::drone::{self, BuildParam, ControlAxis, DroneState, PhysicsParam, PRESETS};
 use mod_api::{ClientHost, Registrar, SettingSpec};
 
-pub const MOD_ID: &str = "fpvdrone";
+pub const MOD_ID: &str = "fpvhorizon";
 /// The fisheye lens's choice by default: Medium.
 pub const FISHEYE_DEFAULT: usize = 2;
 /// The rate axes on the page (throttle has no rate).
 const AXES: [ControlAxis; 3] = [ControlAxis::Roll, ControlAxis::Pitch, ControlAxis::Yaw];
 
 fn label(key: &str) -> String {
-    format!("fpvdrone.setting.{key}")
+    format!("fpvhorizon.setting.{key}")
 }
 
 fn range(key: &str, min: f64, max: f64, step: f64, default: f64) -> SettingSpec {
@@ -21,7 +21,7 @@ fn range(key: &str, min: f64, max: f64, step: f64, default: f64) -> SettingSpec 
 pub fn register(r: &mut dyn Registrar) {
     use drone::controller as c;
     let mut specs = vec![
-        SettingSpec::choice("drone", label("drone"), PRESETS.iter().map(|p| format!("fpvdrone.preset.{}", p.id)), 0),
+        SettingSpec::choice("drone", label("drone"), PRESETS.iter().map(|p| format!("fpvhorizon.preset.{}", p.id)), 0),
         SettingSpec::toggle("custom_build", label("custom_build"), false),
         SettingSpec::toggle("hide_hud", label("hide_hud"), true),
         SettingSpec::toggle("show_sticks", label("show_sticks"), true),
@@ -29,7 +29,7 @@ pub fn register(r: &mut dyn Registrar) {
         SettingSpec::choice(
             "fisheye",
             label("fisheye"),
-            ["off", "light", "medium", "strong"].map(|l| format!("fpvdrone.fisheye.{l}")),
+            ["off", "light", "medium", "strong"].map(|l| format!("fpvhorizon.fisheye.{l}")),
             FISHEYE_DEFAULT,
         ),
         range("mouse_sensitivity", 0.1, 5.0, 0.05, 1.0),

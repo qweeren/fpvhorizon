@@ -1,4 +1,4 @@
-//! FPV Drone: fly a real FPV quad in Minecraft, as in a drone sim.
+//! FPV Horizon: fly a real FPV quad in Minecraft, as in a drone sim.
 //!
 //! H (L1 + R1 on a pad) puts the chosen drone on the ground in front of you and takes you to its
 //! camera; the pilot's body stays where it stood. Arm with R (Triangle), fly, reset with
@@ -223,7 +223,7 @@ pub fn camera_roll() -> f32 {
 
 /// The fisheye lens's post chains, by the settings page's choice (Off first).
 const FISHEYE_EFFECTS: [Option<&str>; 4] =
-    [None, Some("fpvdrone:fisheye_light"), Some("fpvdrone:fisheye_medium"), Some("fpvdrone:fisheye_strong")];
+    [None, Some("fpvhorizon:fisheye_light"), Some("fpvhorizon:fisheye_medium"), Some("fpvhorizon:fisheye_strong")];
 
 /// The `fisheye` mixin: the post chain the frame goes through for the FPV camera's lens, while
 /// on the drone's camera.

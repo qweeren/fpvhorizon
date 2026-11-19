@@ -1,0 +1,10 @@
+# Cargo build output
+target/
+
+# SDK that `cargo horizon-mod` fetches
+.horizon/
+
+__pycache__/
+
+# Packaged .hmod (built and published by CI)
+dist/

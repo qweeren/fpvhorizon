@@ -1,5 +1,5 @@
 """Writes the drone's textures and Blockbench-style (Java block model) models into
-hmod/assets/fpvdrone. One model unit is one centimetre (the game draws them at 0.16 of a
+hmod/assets/fpvhorizon. One model unit is one centimetre (the game draws them at 0.16 of a
 block's 16 units per block, so a unit is 0.01 block); (8, 0, 8) is the bottom centre and the
 front is -z (north), where the camera looks.
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-ROOT = Path(__file__).resolve().parent.parent / "hmod" / "assets" / "fpvdrone"
+ROOT = Path(__file__).resolve().parent.parent / "hmod" / "assets" / "fpvhorizon"
 TEX = ROOT / "textures" / "block"
 MODELS = ROOT / "models" / "drone"
 
@@ -93,14 +93,14 @@ def box(frm, to, tex, rotation=None, name=None):
 
 
 def textures(*names):
-    t = {n: f"fpvdrone:block/drone_{n}" for n in names}
-    t["particle"] = "fpvdrone:block/drone_carbon"
+    t = {n: f"fpvhorizon:block/drone_{n}" for n in names}
+    t["particle"] = "fpvhorizon:block/drone_carbon"
     return t
 
 
 def write(name, elements, tex):
     MODELS.mkdir(parents=True, exist_ok=True)
-    model = {"credit": "fpvdrone (tools/drone_assets.py)", "textures": tex, "elements": elements}
+    model = {"credit": "fpvhorizon (tools/drone_assets.py)", "textures": tex, "elements": elements}
     (MODELS / f"{name}.json").write_text(json.dumps(model, indent=1) + "\n", encoding="utf-8")
 
 

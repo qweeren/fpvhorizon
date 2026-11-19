@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and package script for FPV Drone Horizon mod.
+"""Build and package script for FPV Horizon Horizon mod.
 
 Usage:
     python build.py             # Run tests, build .hmod, and install to Horizon launcher
@@ -73,7 +73,7 @@ def main():
     install = "--dist-only" not in args
     success = package_and_install(install=install)
     if success and install:
-        print("\nSuccessfully built and installed fpvdrone.hmod into Horizon Launcher!")
+        print("\nSuccessfully built and installed fpvhorizon.hmod into Horizon Launcher!")
     return 0 if success else 1
 
 

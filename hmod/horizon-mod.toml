@@ -1,6 +1,6 @@
-id = "fpvdrone"
-name = "FPV Drone"
-version = "2.0.0"
+id = "fpvhorizon"
+name = "FPV Horizon"
+version = "0.9.0"
 description = "Fly real FPV drones as in a sim. H (L1+R1) puts your drone down and takes you to its camera; R (Triangle) arms; V views; [ ] changes drone; Backspace resets."
 authors = ["Eren"]
 license = "GPL-3.0-only"
@@ -21,7 +21,7 @@ mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
 [[native.module]]
 id = "adapter"
 file = "crates/horizon-client/src/game/native_hooks/client_tick_post.rs"
-name = "fpvdrone_adapter"
+name = "fpvhorizon_adapter"
 source = "src/adapter.rs"
 
 [[native.mixin]]
@@ -70,7 +70,7 @@ cancellable = true
 helper = "src/mixins/pad.rs"
 bindings = [{ name = "down", ty = "bool", value = "down" }]
 
-# The FPV camera's fisheye lens: a post chain (assets/fpvdrone/post_effect/fisheye_*.json)
+# The FPV camera's fisheye lens: a post chain (assets/fpvhorizon/post_effect/fisheye_*.json)
 # added after the frame's own, as a creeper's view is added while spectating one. The mod API
 # has no way to request a post effect, so this adds it to the list the frame is drawn through.
 [[native.mixin]]

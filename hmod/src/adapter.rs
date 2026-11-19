@@ -7,22 +7,22 @@ use horizon_client::gamepad::Button;
 
 /// The pad buttons the drone uses, as bits for edge detection.
 const BUTTONS: [(Button, u32); 6] = [
-    (Button::LeftBumper, mod_fpvdrone::PAD_L1),
-    (Button::RightBumper, mod_fpvdrone::PAD_R1),
-    (Button::North, mod_fpvdrone::PAD_ARM),
-    (Button::West, mod_fpvdrone::PAD_RESET),
-    (Button::DPadUp, mod_fpvdrone::PAD_VIEW),
-    (Button::DPadLeft, mod_fpvdrone::PAD_PREV),
+    (Button::LeftBumper, mod_fpvhorizon::PAD_L1),
+    (Button::RightBumper, mod_fpvhorizon::PAD_R1),
+    (Button::North, mod_fpvhorizon::PAD_ARM),
+    (Button::West, mod_fpvhorizon::PAD_RESET),
+    (Button::DPadUp, mod_fpvhorizon::PAD_VIEW),
+    (Button::DPadLeft, mod_fpvhorizon::PAD_PREV),
 ];
 
 pub fn tick(game: &mut Game<'_>) {
     if !game.native_window() {
         return;
     }
-    let mut guard = mod_fpvdrone::SHARED.lock().unwrap();
+    let mut guard = mod_fpvhorizon::SHARED.lock().unwrap();
     let shared = &mut *guard;
 
-    shared.player = game.player.as_ref().map(|p| mod_fpvdrone::PlayerView {
+    shared.player = game.player.as_ref().map(|p| mod_fpvhorizon::PlayerView {
         eye: [p.position.x, p.position.y + f64::from(p.dimensions.eye_height), p.position.z],
         feet: [p.position.x, p.position.y, p.position.z],
         yaw: game.yaw,
@@ -32,7 +32,7 @@ pub fn tick(game: &mut Game<'_>) {
 
     // Mode 2: left stick throttle and yaw, right stick pitch and roll, while the pad is in use.
     let pad = game.pad.state;
-    shared.sticks = game.pad.in_use.then(|| mod_fpvdrone::drone::Sticks {
+    shared.sticks = game.pad.in_use.then(|| mod_fpvhorizon::drone::Sticks {
         roll: pad.right[0],
         pitch: pad.right[1],
         yaw: pad.left[0],
@@ -43,7 +43,7 @@ pub fn tick(game: &mut Game<'_>) {
         .filter(|(button, _)| pad.held(*button))
         .fold(0, |bits, (_, bit)| bits | bit);
     if pad.held(Button::DPadRight) {
-        held |= mod_fpvdrone::PAD_NEXT;
+        held |= mod_fpvhorizon::PAD_NEXT;
     }
     shared.pad_pressed |= held & !shared.pad_held;
     shared.pad_held = held;
