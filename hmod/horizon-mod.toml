@@ -69,3 +69,13 @@ kind = "HEAD"
 cancellable = true
 helper = "src/mixins/pad.rs"
 bindings = [{ name = "down", ty = "bool", value = "down" }]
+
+# The FPV camera's fisheye lens: a post chain (assets/fpvdrone/post_effect/fisheye_*.json)
+# added after the frame's own, as a creeper's view is added while spectating one. The mod API
+# has no way to request a post effect, so this adds it to the list the frame is drawn through.
+[[native.mixin]]
+id = "fisheye"
+target = "horizon_client::game::screen_backgrounds::Game<'_>::requested_post_effects"
+kind = "RETURN"
+helper = "src/mixins/fisheye.rs"
+bindings = [{ name = "value", ty = "Vec<String>", value = "$value" }]

@@ -44,5 +44,10 @@
   "fpvdrone.preset.cinelog35": "GEPRC CineLog35 V2 (3.5\" cinewhoop 6S)",
   "fpvdrone.preset.meteor75": "BetaFPV Meteor75 Pro (75mm whoop 1S)",
   "fpvdrone.preset.chimera7": "iFlight Chimera7 Pro V2 (7.5\" long range 6S)",
-  "fpvdrone.setting.fpv_fov": "FPV Camera Field of View"
+  "fpvdrone.setting.fpv_fov": "FPV Camera Field of View",
+  "fpvdrone.setting.fisheye": "FPV Camera Fisheye",
+  "fpvdrone.fisheye.off": "Off",
+  "fpvdrone.fisheye.light": "Light",
+  "fpvdrone.fisheye.medium": "Medium",
+  "fpvdrone.fisheye.strong": "Strong"
 }

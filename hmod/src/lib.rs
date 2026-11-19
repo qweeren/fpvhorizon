@@ -142,6 +142,8 @@ pub struct Shared {
     /// The FPV camera's field of view setting, and the field of view the world was drawn with.
     fpv_fov: f32,
     fov: f32,
+    /// The FPV camera's fisheye lens: an index into `FISHEYE_EFFECTS`, 0 for none.
+    fisheye: usize,
     /// Link quality 0..100 and the drone's distance from the pilot.
     link: f32,
     distance: f64,
@@ -174,6 +176,7 @@ pub static SHARED: Mutex<Shared> = Mutex::new(Shared {
     show_sticks: true,
     fpv_fov: 110.0,
     fov: 70.0,
+    fisheye: 0,
     link: 100.0,
     distance: 0.0,
     range: 160.0,
@@ -216,6 +219,21 @@ pub fn take_turn(xo: f64, yo: f64) -> bool {
 pub fn camera_roll() -> f32 {
     let shared = SHARED.lock().unwrap();
     if flying(&shared) && view_now(&shared) == View::Fpv { shared.roll } else { 0.0 }
+}
+
+/// The fisheye lens's post chains, by the settings page's choice (Off first).
+const FISHEYE_EFFECTS: [Option<&str>; 4] =
+    [None, Some("fpvdrone:fisheye_light"), Some("fpvdrone:fisheye_medium"), Some("fpvdrone:fisheye_strong")];
+
+/// The `fisheye` mixin: the post chain the frame goes through for the FPV camera's lens, while
+/// on the drone's camera.
+pub fn fisheye_effect() -> Option<&'static str> {
+    let shared = SHARED.lock().unwrap();
+    if flying(&shared) && view_now(&shared) == View::Fpv {
+        FISHEYE_EFFECTS.get(shared.fisheye).copied().flatten()
+    } else {
+        None
+    }
 }
 
 /// Moves a drone box (bottom centre `pos`, `half` wide each way, `height` tall) by `movement`,
@@ -369,6 +387,7 @@ impl Hooks for Mod {
         shared.mouse_sensitivity = settings::f(host, "mouse_sensitivity").unwrap_or(1.0);
         shared.show_sticks = host.setting_bool("show_sticks").unwrap_or(true);
         shared.fpv_fov = settings::f(host, "fpv_fov").unwrap_or(110.0);
+        shared.fisheye = host.setting_choice("fisheye").map_or(settings::FISHEYE_DEFAULT, |i| i as usize);
         let hide_hud = host.setting_bool("hide_hud").unwrap_or(true);
         let range = f64::from(settings::f(host, "range").unwrap_or(160.0));
         let drone = shared.drone.get_or_insert_with(drone::DroneState::new);

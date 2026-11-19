@@ -5,6 +5,8 @@ use crate::drone::{self, BuildParam, ControlAxis, DroneState, PhysicsParam, PRES
 use mod_api::{ClientHost, Registrar, SettingSpec};
 
 pub const MOD_ID: &str = "fpvdrone";
+/// The fisheye lens's choice by default: Medium.
+pub const FISHEYE_DEFAULT: usize = 2;
 /// The rate axes on the page (throttle has no rate).
 const AXES: [ControlAxis; 3] = [ControlAxis::Roll, ControlAxis::Pitch, ControlAxis::Yaw];
 
@@ -24,6 +26,12 @@ pub fn register(r: &mut dyn Registrar) {
         SettingSpec::toggle("hide_hud", label("hide_hud"), true),
         SettingSpec::toggle("show_sticks", label("show_sticks"), true),
         range("fpv_fov", 60.0, 150.0, 1.0, 110.0),
+        SettingSpec::choice(
+            "fisheye",
+            label("fisheye"),
+            ["off", "light", "medium", "strong"].map(|l| format!("fpvdrone.fisheye.{l}")),
+            FISHEYE_DEFAULT,
+        ),
         range("mouse_sensitivity", 0.1, 5.0, 0.05, 1.0),
         range("gravity", 4.0, 30.0, 0.1, 9.8),
         SettingSpec::toggle("throttle_centre_hover", label("throttle_centre_hover"), true),
