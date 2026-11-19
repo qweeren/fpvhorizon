@@ -40,8 +40,8 @@ FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic q
 
 ## Project layout
 
-- `core/`: the game-agnostic drone simulation (physics, controller, collision, presets), unit-tested on its own.
 - `hmod/`: the Horizon mod: `horizon-mod.toml`, the mod crate in `src/`, its mixins in `src/mixins/`, and assets.
+- `hmod/src/drone/`: the game-agnostic drone simulation (physics, controller, collision, presets), unit-tested on its own.
 - `tools/`: packaging and asset-generation scripts.
 
 ## Building
@@ -68,11 +68,11 @@ python tools/package.py --install
 
 ## Releasing
 
-Push a tag matching the version in `hmod/horizon-mod.toml` (for example `v2.0.0`). GitHub Actions builds the `.hmod` and attaches it to a GitHub Release.
+Push a tag matching the version in `hmod/horizon-mod.toml` (for example `v0.9.0`). GitHub Actions builds the `.hmod` with `cargo horizon-mod build`, runs `cargo horizon-mod check` on it, and attaches it to a GitHub Release with its SHA-256. `0.x` versions are marked as pre-releases.
 
 ## Credits
 
-The flight physics, drone builds, rates and controller logic in `core/` started as a Rust port of the [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) mod by its authors, licensed under GPL-3.0. FPV Horizon adapts and extends that work for Horizon.
+The flight physics, drone builds, rates and controller logic in `hmod/src/drone/` started as a Rust port of the [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) mod by its authors, licensed under GPL-3.0. FPV Horizon adapts and extends that work for Horizon.
 
 ## Licence
 

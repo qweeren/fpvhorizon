@@ -1,6 +1,6 @@
 id = "fpvhorizon"
 name = "FPV Horizon"
-version = "2.0.0"
+version = "0.9.0"
 description = "Fly real FPV drones as in a sim. H (L1+R1) puts your drone down and takes you to its camera; R (Triangle) arms; V views; [ ] changes drone; Backspace resets."
 authors = ["Eren"]
 license = "GPL-3.0-only"

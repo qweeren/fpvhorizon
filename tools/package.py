@@ -4,8 +4,9 @@ A native .hmod is the mod's source with a flat layout (playhorizon.dev/docs/mod-
 horizon-mod.toml, Cargo.toml and src/ at the root, no folder named after the mod. The launcher
 compiles it on the player's computer against the game build [native] pins.
 
-The package is hmod/ (manifest, crate, hooks, mixin and support module) with the game-agnostic
-drone core/ added as src/drone/.
+The package is hmod/: manifest, crate (with the drone simulation in src/drone/), mixins,
+support module and assets. The official tool is `cargo horizon-mod build` in hmod/; this
+script is a quick local alternative.
 
     python tools/package.py              write dist/fpvhorizon.hmod
     python tools/package.py --install    also copy it into the game folder's
@@ -54,8 +55,6 @@ def main() -> int:
         rel = path.relative_to(MOD)
         if path.is_file() and not (set(rel.parts) & SKIP):
             files[rel.as_posix()] = path.read_bytes()
-    for path in sorted((ROOT / "core").rglob("*.rs")):
-        files[f"src/drone/{path.relative_to(ROOT / 'core').as_posix()}"] = path.read_bytes()
 
     out = ROOT / "dist" / f"{mod_id}.hmod"
     out.parent.mkdir(exist_ok=True)

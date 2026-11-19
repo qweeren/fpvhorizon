@@ -1,7 +1,8 @@
 name: Build
 
-# Push a tag like v2.0.0 to build fpvhorizon.hmod and attach it to a GitHub Release.
-# Run it by hand from the Actions tab to just build the .hmod as a downloadable artifact.
+# Push a tag like v0.9.0 to build fpvhorizon.hmod with Horizon's official tool, check it
+# the way the horizon-mods registry does, and attach it to a GitHub Release.
+# Run it by hand from the Actions tab to just build and check (downloadable artifact).
 on:
   push:
     tags: ["v*"]
@@ -16,30 +17,67 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Package .hmod
-        run: python tools/package.py
+      - name: Read manifest
+        id: manifest
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'EOF'
+          import tomllib
+          m = tomllib.load(open("hmod/horizon-mod.toml", "rb"))
+          print(f"id={m['id']}")
+          print(f"version={m['version']}")
+          print(f"horizon={m['native']['horizon']}")
+          EOF
 
       - name: Check tag matches manifest version
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          version=$(python -c "import tomllib; print(tomllib.load(open('hmod/horizon-mod.toml','rb'))['version'])")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in hmod/horizon-mod.toml"
+          if [ "v${{ steps.manifest.outputs.version }}" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version ${{ steps.manifest.outputs.version }} in hmod/horizon-mod.toml"
             exit 1
           fi
 
+      # cargo-horizon-mod from the exact Horizon commit the manifest pins.
+      - uses: actions/cache@v4
+        id: tool-cache
+        with:
+          path: |
+            ~/.cargo/bin/cargo-horizon-mod
+          key: cargo-horizon-mod-${{ steps.manifest.outputs.horizon }}
+
+      - name: Install cargo-horizon-mod
+        if: steps.tool-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked --git https://github.com/horizon-rust/horizon --rev "${{ steps.manifest.outputs.horizon }}" cargo-horizon-mod
+
+      - name: Build
+        working-directory: hmod
+        run: cargo horizon-mod build
+
+      - name: Check
+        working-directory: hmod
+        run: cargo horizon-mod check "target/horizon-mod/${{ steps.manifest.outputs.id }}.hmod"
+
+      - name: SHA-256
+        id: hash
+        working-directory: hmod/target/horizon-mod
+        run: |
+          sum=$(sha256sum "${{ steps.manifest.outputs.id }}.hmod" | cut -d' ' -f1)
+          echo "sha256=$sum" >> "$GITHUB_OUTPUT"
+          echo "### ${{ steps.manifest.outputs.id }}.hmod" >> "$GITHUB_STEP_SUMMARY"
+          echo "SHA-256: \`$sum\`" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: fpvhorizon
-          path: dist/*.hmod
+          name: ${{ steps.manifest.outputs.id }}-${{ steps.manifest.outputs.version }}
+          path: hmod/target/horizon-mod/*.hmod
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.hmod
+          files: hmod/target/horizon-mod/*.hmod
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
+          body: |
+            Built with `cargo horizon-mod build` and checked with `cargo horizon-mod check` against Horizon `${{ steps.manifest.outputs.horizon }}`.
+
+            SHA-256 of `${{ steps.manifest.outputs.id }}.hmod`: `${{ steps.hash.outputs.sha256 }}`
           generate_release_notes: true
