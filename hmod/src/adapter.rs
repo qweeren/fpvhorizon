@@ -3,7 +3,7 @@
 // where the player stands and looks. The drone itself lives in the mod's crate.
 
 use crate::game::{Game, Screen};
-use horizon_client::gamepad::Button;
+use horizon_client::gamepad::{Button, GlyphStyle};
 
 /// The pad buttons the drone uses, as bits for edge detection.
 const BUTTONS: [(Button, u32); 6] = [
@@ -47,4 +47,11 @@ pub fn tick(game: &mut Game<'_>) {
     }
     shared.pad_pressed |= held & !shared.pad_held;
     shared.pad_held = held;
+
+    // The glyphs the player sees on Horizon's own pad hints, for the OSD's.
+    shared.pad_family = match game.ui.options.pad_glyphs.family() {
+        GlyphStyle::PlayStation => mod_fpvhorizon::PadFamily::PlayStation,
+        GlyphStyle::Nintendo => mod_fpvhorizon::PadFamily::Nintendo,
+        GlyphStyle::Xbox | GlyphStyle::Auto => mod_fpvhorizon::PadFamily::Xbox,
+    };
 }

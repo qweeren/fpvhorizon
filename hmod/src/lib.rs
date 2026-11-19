@@ -12,6 +12,8 @@
 pub mod drone;
 mod font;
 mod osd;
+
+pub use osd::PadFamily;
 mod render;
 mod settings;
 mod sound;
@@ -124,6 +126,8 @@ pub struct Shared {
     pub sticks: Option<drone::Sticks>,
     pub pad_held: u32,
     pub pad_pressed: u32,
+    /// Whose button art the OSD's pad hints use, as the tick module last read it.
+    pub pad_family: PadFamily,
     pub player: Option<PlayerView>,
     /// In a world, unpaused, with no screen open.
     pub playing: bool,
@@ -163,6 +167,7 @@ pub static SHARED: Mutex<Shared> = Mutex::new(Shared {
     sticks: None,
     pad_held: 0,
     pad_pressed: 0,
+    pad_family: PadFamily::Xbox,
     player: None,
     playing: false,
     view: View::Fpv,
@@ -658,6 +663,7 @@ impl Hooks for Mod {
             index: (shared.preset, drone::PRESETS.len()),
             fov: shared.fov,
             show_sticks: shared.show_sticks,
+            pad: shared.sticks.is_some().then_some(shared.pad_family),
             time: shared.started.map_or(0.0, |s| s.elapsed().as_secs_f32()),
         };
         osd::draw(&mut *event.batch, &osd);

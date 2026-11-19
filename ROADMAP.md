@@ -13,8 +13,9 @@
 ## Polish before 1.0
 
 - [ ] Final icon and screenshots for the mod page
-- [ ] Use Horizon's native gamepad button icons in the OSD hints instead of text ("D-pad left", "Triangle",
+- [x] Use Horizon's native gamepad button icons in the OSD hints instead of text ("D-pad left", "Triangle",
       "L1+R1" in `hmod/src/osd.rs`), and show only the keyboard or the gamepad hint depending on which is in use
+- [x] Fisheye lens on the FPV camera (Off / Light / Medium / Strong in the settings)
 - [ ] Sign releases with minisign
 
 ## Mobile: Starling (Android)

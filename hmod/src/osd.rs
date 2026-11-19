@@ -33,6 +33,8 @@ pub struct Osd<'a> {
     /// The vertical field of view the world is drawn with, degrees.
     pub fov: f32,
     pub show_sticks: bool,
+    /// The pad's glyphs while the pad is what the player uses; None for the keyboard.
+    pub pad: Option<PadFamily>,
     /// Seconds, for blinking.
     pub time: f32,
 }
@@ -49,6 +51,143 @@ fn text_right(d: &mut dyn DrawContext, s: &str, right: f32, y: f32, color: u32) 
 fn text_centre(d: &mut dyn DrawContext, s: &str, cx: f32, y: f32, color: u32) {
     let w = d.text_width(s);
     text(d, s, cx - w / 2.0, y, color);
+}
+
+/// The pad buttons the hints name, by their place on the pad.
+#[derive(Clone, Copy)]
+pub enum PadButton {
+    North,
+    West,
+    L1,
+    R1,
+    Up,
+    Left,
+    Right,
+}
+
+impl PadButton {
+    /// Horizon's art for the button in `family` (`horizon:gui/controller/`, which a resource pack
+    /// can replace), and its texture's width: 32 by 32, a shoulder button 48 by 32.
+    fn sprite(self, family: PadFamily) -> (&'static str, f32) {
+        use PadButton as B;
+        use PadFamily as F;
+        let name = match (family, self) {
+            (F::Xbox, B::North) => "xb_y",
+            (F::Xbox, B::West) => "xb_x",
+            (F::Xbox, B::L1) => "xb_lb",
+            (F::Xbox, B::R1) => "xb_rb",
+            (F::Xbox, B::Up) => "xb_up",
+            (F::Xbox, B::Left) => "xb_left",
+            (F::Xbox, B::Right) => "xb_right",
+            (F::PlayStation, B::North) => "psx_triangle",
+            (F::PlayStation, B::West) => "psx_square",
+            (F::PlayStation, B::L1) => "psx_l1",
+            (F::PlayStation, B::R1) => "psx_r1",
+            (F::PlayStation, B::Up) => "psx_up",
+            (F::PlayStation, B::Left) => "psx_left",
+            (F::PlayStation, B::Right) => "psx_right",
+            (F::Nintendo, B::North) => "nx_x",
+            (F::Nintendo, B::West) => "nx_y",
+            (F::Nintendo, B::L1) => "nx_l",
+            (F::Nintendo, B::R1) => "nx_r",
+            (F::Nintendo, B::Up) => "nx_up",
+            (F::Nintendo, B::Left) => "nx_left",
+            (F::Nintendo, B::Right) => "nx_right",
+        };
+        let wide = matches!(self, B::L1 | B::R1);
+        (name, if wide { 48.0 } else { 32.0 })
+    }
+
+    /// The button's print, where its art is missing.
+    fn label(self, family: PadFamily) -> &'static str {
+        use PadButton as B;
+        match (family, self) {
+            (PadFamily::Xbox, B::North) => "Y",
+            (PadFamily::Xbox, B::West) => "X",
+            (PadFamily::Xbox, B::L1) => "LB",
+            (PadFamily::Xbox, B::R1) => "RB",
+            (PadFamily::PlayStation, B::North) => "Triangle",
+            (PadFamily::PlayStation, B::West) => "Square",
+            (PadFamily::PlayStation, B::L1) => "L1",
+            (PadFamily::PlayStation, B::R1) => "R1",
+            (PadFamily::Nintendo, B::North) => "X",
+            (PadFamily::Nintendo, B::West) => "Y",
+            (PadFamily::Nintendo, B::L1) => "L",
+            (PadFamily::Nintendo, B::R1) => "R",
+            (_, B::Up) => "Up",
+            (_, B::Left) => "Left",
+            (_, B::Right) => "Right",
+        }
+    }
+}
+
+/// Whose button art the pad's hints use: the player's choice of glyphs in Horizon.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PadFamily {
+    Xbox,
+    PlayStation,
+    Nintendo,
+}
+
+/// A piece of a hint line: words, or a pad button drawn as Horizon draws it.
+#[derive(Clone, Copy)]
+pub enum Hint {
+    Text(&'static str),
+    Pad(PadButton),
+}
+
+/// The art is drawn 16 GUI pixels tall (its texture at half size), with a clear edge of 2 all
+/// round, so it shows 12 tall: a text line and 2 above and below it.
+const GLYPH_DRAWN: f32 = 16.0;
+const GLYPH_MARGIN: f32 = 2.0;
+
+/// A button's width in a hint, as it shows (its clear edges left out).
+fn glyph_width(button: PadButton, family: PadFamily) -> f32 {
+    let (_, texture_w) = button.sprite(family);
+    texture_w / 2.0 - 2.0 * GLYPH_MARGIN
+}
+
+fn hint_width(d: &dyn DrawContext, hint: &[Hint], family: PadFamily) -> f32 {
+    hint.iter()
+        .map(|h| match *h {
+            Hint::Text(s) => d.text_width(s),
+            Hint::Pad(b) => glyph_width(b, family) + 2.0,
+        })
+        .sum()
+}
+
+/// A hint line centred on `cx`, its buttons drawn with Horizon's art in `family`'s glyphs, or
+/// by their print where a pack took the art away.
+fn hint_centre(d: &mut dyn DrawContext, hint: &[Hint], family: PadFamily, cx: f32, y: f32, color: u32) {
+    let mut x = cx - hint_width(d, hint, family) / 2.0;
+    for h in hint {
+        match *h {
+            Hint::Text(s) => {
+                text(d, s, x, y, color);
+                x += d.text_width(s);
+            }
+            Hint::Pad(b) => {
+                let (name, texture_w) = b.sprite(family);
+                let w = glyph_width(b, family);
+                let dst = [x + 1.0 - GLYPH_MARGIN, y + 4.0 - GLYPH_DRAWN / 2.0, texture_w / 2.0, GLYPH_DRAWN];
+                let sprite = format!("horizon:gui/controller/{name}");
+                if !d.sprite(&sprite, [0.0, 0.0, texture_w, 32.0], dst, None) {
+                    let label = b.label(family);
+                    let left = x + 1.0 + (w - d.text_width(label)) / 2.0;
+                    text(d, label, left, y, color);
+                }
+                x += w + 2.0;
+            }
+        }
+    }
+}
+
+/// The hint for what is in use: the keyboard's words, or the pad's with its buttons drawn.
+fn input_hint(d: &mut dyn DrawContext, osd: &Osd<'_>, keys: &str, pad: &[Hint], cx: f32, y: f32, color: u32) {
+    match osd.pad {
+        Some(family) => hint_centre(d, pad, family, cx, y, color),
+        None => text_centre(d, keys, cx, y, color),
+    }
 }
 
 /// A vertical gradient from `top` to `bottom` colour over `rect`, in thin bands (the draw
@@ -257,8 +396,8 @@ fn draw_showcase(d: &mut dyn DrawContext, osd: &Osd<'_>) {
     let arrow = (pulse << 24) | 0x00FF_FFFF;
     big_text(d, "<", w * 0.18, h * 0.45, 6.0, arrow);
     big_text(d, ">", w * 0.82, h * 0.45, 6.0, arrow);
-    text_centre(d, "[  /  D-pad left", w * 0.18, h * 0.45 + 50.0, DIM);
-    text_centre(d, "]  /  D-pad right", w * 0.82, h * 0.45 + 50.0, DIM);
+    input_hint(d, osd, "[", &[Hint::Pad(PadButton::Left)], w * 0.18, h * 0.45 + 50.0, DIM);
+    input_hint(d, osd, "]", &[Hint::Pad(PadButton::Right)], w * 0.82, h * 0.45 + 50.0, DIM);
 
     // Description and real specs.
     let panel_w = (w * 0.55).clamp(240.0, 520.0);
@@ -282,7 +421,23 @@ fn draw_showcase(d: &mut dyn DrawContext, osd: &Osd<'_>) {
     );
     text_centre(d, &specs, cx, y, WHITE);
     y += 16.0;
-    text_centre(d, "Throttle down + R / Triangle: arm and fly    H / L1+R1: back to you", cx, y, 0xFF9A_D0FF);
+    input_hint(
+        d,
+        osd,
+        "Throttle down + R: arm and fly    H: back to you",
+        &[
+            Hint::Text("Throttle down + "),
+            Hint::Pad(PadButton::North),
+            Hint::Text(": arm and fly    "),
+            Hint::Pad(PadButton::L1),
+            Hint::Text("+"),
+            Hint::Pad(PadButton::R1),
+            Hint::Text(": back to you"),
+        ],
+        cx,
+        y,
+        0xFF9A_D0FF,
+    );
 }
 
 pub fn draw(d: &mut dyn DrawContext, osd: &Osd<'_>) {
@@ -411,12 +566,31 @@ pub fn draw(d: &mut dyn DrawContext, osd: &Osd<'_>) {
         for (i, l) in lines.iter().enumerate() {
             text(d, l, x + 6.0, top + 18.0 + i as f32 * 10.0, DIM);
         }
-        let keys = if s.crashed {
-            "Backspace / Square: reset    H / L1+R1: land"
+        let land = [Hint::Pad(PadButton::L1), Hint::Text("+"), Hint::Pad(PadButton::R1), Hint::Text(": land")];
+        let (keys, pad): (&str, Vec<Hint>) = if s.crashed {
+            (
+                "Backspace: reset    H: land",
+                [Hint::Pad(PadButton::West), Hint::Text(": reset    ")].into_iter().chain(land).collect(),
+            )
         } else {
-            "Throttle down + R / Triangle: arm    [ ] / D-pad: drone    V / D-pad up: view    H: land"
+            (
+                "Throttle down + R: arm    [ ]: drone    V: view    H: land",
+                [
+                    Hint::Text("Throttle down + "),
+                    Hint::Pad(PadButton::North),
+                    Hint::Text(": arm    "),
+                    Hint::Pad(PadButton::Left),
+                    Hint::Pad(PadButton::Right),
+                    Hint::Text(": drone    "),
+                    Hint::Pad(PadButton::Up),
+                    Hint::Text(": view    "),
+                ]
+                .into_iter()
+                .chain(land)
+                .collect(),
+            )
         };
-        text_centre(d, keys, cx, top + card_h - 12.0, 0xFF9AD0FF);
+        input_hint(d, osd, keys, &pad, cx, top + card_h - 12.0, 0xFF9AD0FF);
     }
 
     if osd.show_sticks {
