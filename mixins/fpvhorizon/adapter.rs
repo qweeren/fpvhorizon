@@ -1,7 +1,7 @@
 // Adapter connecting the pure Rust FPV drone core to Horizon's game instance.
 // Exposes tick, HUD, key, movement, settings, and network hooks.
 
-use crate::game::fpvdrone as core;
+use crate::game::fpvhorizon as core;
 use crate::game::Game;
 use std::sync::Mutex;
 use std::time::Instant;
@@ -187,8 +187,8 @@ pub fn movement(_game: &Game<'_>, forward: &mut f32, strafe: &mut f32, jump: &mu
 
 pub fn list(mods: &mut Vec<crate::game::native_hooks::NativeMod>) {
     mods.push(crate::game::native_hooks::NativeMod {
-        id: "fpvdrone".into(),
-        title: "FPV Drone 1.0.0".into(),
+        id: "fpvhorizon".into(),
+        title: "FPV Horizon 1.0.0".into(),
         description: "Fly as an FPV drone in Minecraft with realistic quadcopter aerodynamics.".into(),
         keys: vec!["key.keyboard.h".into()],
     });

@@ -1,7 +1,7 @@
 {
   "motor": {
     "sounds": [
-      { "name": "fpvdrone:motor" }
+      { "name": "fpvhorizon:motor" }
     ]
   }
 }

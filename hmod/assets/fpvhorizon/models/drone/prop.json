@@ -1,9 +1,9 @@
 {
- "credit": "fpvdrone (tools/drone_assets.py)",
+ "credit": "fpvhorizon (tools/drone_assets.py)",
  "textures": {
-  "prop": "fpvdrone:block/drone_prop",
-  "motor": "fpvdrone:block/drone_motor",
-  "particle": "fpvdrone:block/drone_carbon"
+  "prop": "fpvhorizon:block/drone_prop",
+  "motor": "fpvhorizon:block/drone_motor",
+  "particle": "fpvhorizon:block/drone_carbon"
  },
  "elements": [
   {

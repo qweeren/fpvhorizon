@@ -1,4 +1,4 @@
-"""Synthesises fpvdrone's motor loop: four slightly detuned motors (their beating is the
+"""Synthesises fpvhorizon's motor loop: four slightly detuned motors (their beating is the
 quad's 'wobble'), blade-pass harmonics, and band-limited prop wash noise. Every component
 has a whole number of cycles in the loop, so it repeats seamlessly. The game plays it at
 several pitches and crossfades them by motor speed."""

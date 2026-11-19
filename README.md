@@ -1,6 +1,6 @@
-# FPV Drone for Horizon (Rust)
+# FPV Horizon (Rust)
 
-A native Horizon port of the FPV Drone mod. Enables realistic quadcopter physics, Betaflight-style rates, and acro flight mechanics inside Horizon.
+FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic quadcopter physics, Betaflight-style rates, and acro flight mechanics inside Horizon.
 
 ## Features
 
@@ -19,18 +19,18 @@ A native Horizon port of the FPV Drone mod. Enables realistic quadcopter physics
   - Visual crosshairs with real-time marker tracking.
 - **Native Horizon Mixin Architecture**:
   - Pure, game-agnostic Rust core in `core/` with 100% unit-tested math and physics.
-  - Clean Horizon adapter in `mixins/fpvdrone/` hooking into `native_tick`, `native_hud`, `native_key`, `native_movement_input`, and `native_settings`.
+  - Clean Horizon adapter in `mixins/fpvhorizon/` hooking into `native_tick`, `native_hud`, `native_key`, `native_movement_input`, and `native_settings`.
 
 ## Controls
 
 | Key | Action |
 |---|---|
-| **H** | Toggle FPV Drone Flight Mode |
+| **H** | Toggle Drone Flight Mode |
 | **Mouse X / Y** | Roll & Pitch (Acro mode control) |
 | **W / S** (or **Up / Down**) | Throttle Up / Down |
 | **A / D** (or **Left / Right**) | Yaw Left / Right |
 
-## Settings (Options > Mods > FPV Drone)
+## Settings (Options > Mods > FPV Horizon)
 
 - **Drone Mode**: Toggle flight on/off.
 - **3D Mode**: Toggle between standard throttle (0% to 100%) and 3D acrobatic throttle (-100% to +100%).
@@ -47,9 +47,9 @@ Run the standalone core test suite (requires no game files or running client):
 cargo test --lib
 ```
 
-### Packaging `.hnmod`
+### Packaging `.hmod`
 
-To package the bundle into `dist/fpvdrone.hnmod`:
+To package the bundle into `dist/fpvhorizon.hmod`:
 
 ```bash
 python tools/package.py

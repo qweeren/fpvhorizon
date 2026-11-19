@@ -1,4 +1,4 @@
-// Game-agnostic core logic for the FPV Drone mod.
+// Game-agnostic core logic for the FPV Horizon mod.
 // Handles 3D vector/quaternion math, aerodynamics, motor physics, collision response,
 // Betaflight rates, stick shaping, HUD geometry, and drone state lifecycle.
 

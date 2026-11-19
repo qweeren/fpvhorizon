@@ -1,4 +1,4 @@
-//! FPV Drone: fly a real FPV quad in Minecraft, as in a drone sim.
+//! FPV Horizon: fly a real FPV quad in Minecraft, as in a drone sim.
 //!
 //! H (L1 + R1 on a pad) puts the chosen drone on the ground in front of you and takes you to its
 //! camera; the pilot's body stays where it stood. Arm with R (Triangle), fly, reset with

@@ -1,5 +1,5 @@
-id = "fpvdrone"
-name = "FPV Drone"
+id = "fpvhorizon"
+name = "FPV Horizon"
 version = "2.0.0"
 description = "Fly real FPV drones as in a sim. H (L1+R1) puts your drone down and takes you to its camera; R (Triangle) arms; V views; [ ] changes drone; Backspace resets."
 authors = ["Eren"]
@@ -21,7 +21,7 @@ mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
 [[native.module]]
 id = "adapter"
 file = "crates/horizon-client/src/game/native_hooks/client_tick_post.rs"
-name = "fpvdrone_adapter"
+name = "fpvhorizon_adapter"
 source = "src/adapter.rs"
 
 [[native.mixin]]

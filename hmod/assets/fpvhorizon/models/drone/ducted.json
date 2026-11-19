@@ -1,14 +1,14 @@
 {
- "credit": "fpvdrone (tools/drone_assets.py)",
+ "credit": "fpvhorizon (tools/drone_assets.py)",
  "textures": {
-  "carbon": "fpvdrone:block/drone_carbon",
-  "strap": "fpvdrone:block/drone_strap",
-  "battery": "fpvdrone:block/drone_battery",
-  "camera": "fpvdrone:block/drone_camera",
-  "lens": "fpvdrone:block/drone_lens",
-  "duct": "fpvdrone:block/drone_duct",
-  "motor": "fpvdrone:block/drone_motor",
-  "particle": "fpvdrone:block/drone_carbon"
+  "carbon": "fpvhorizon:block/drone_carbon",
+  "strap": "fpvhorizon:block/drone_strap",
+  "battery": "fpvhorizon:block/drone_battery",
+  "camera": "fpvhorizon:block/drone_camera",
+  "lens": "fpvhorizon:block/drone_lens",
+  "duct": "fpvhorizon:block/drone_duct",
+  "motor": "fpvhorizon:block/drone_motor",
+  "particle": "fpvhorizon:block/drone_carbon"
  },
  "elements": [
   {

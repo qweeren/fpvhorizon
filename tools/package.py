@@ -1,4 +1,4 @@
-"""Packages the mod as dist/fpvdrone.hmod, the package the Horizon launcher installs.
+"""Packages the mod as dist/fpvhorizon.hmod, the package the Horizon launcher installs.
 
 A native .hmod is the mod's source with a flat layout (playhorizon.dev/docs/mod-manifest):
 horizon-mod.toml, Cargo.toml and src/ at the root, no folder named after the mod. The launcher
@@ -7,7 +7,7 @@ compiles it on the player's computer against the game build [native] pins.
 The package is hmod/ (manifest, crate, hooks, mixin and support module) with the game-agnostic
 drone core/ added as src/drone/.
 
-    python tools/package.py              write dist/fpvdrone.hmod
+    python tools/package.py              write dist/fpvhorizon.hmod
     python tools/package.py --install    also copy it into the game folder's
                                          horizon-native-mods (default instance)
 """

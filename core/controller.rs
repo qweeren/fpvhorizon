@@ -127,7 +127,7 @@ impl ControllerConfig {
     }
 
     pub fn to_properties(&self) -> String {
-        let mut out = String::from("# FPV Drone controller config\n");
+        let mut out = String::from("# FPV Horizon controller config\n");
         out.push_str(&format!("deadzone={}\n", self.deadzone));
         out.push_str(&format!("mode_3d={}\n", self.mode_3d));
         out.push_str(&format!("show_axis_values={}\n", self.show_axis_values));

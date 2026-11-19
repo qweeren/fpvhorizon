@@ -9,9 +9,9 @@ use mod_api::{
 };
 use std::sync::Mutex;
 
-const X_FRAME: &str = "fpvdrone:drone/x_frame";
-const DUCTED: &str = "fpvdrone:drone/ducted";
-const PROP: &str = "fpvdrone:drone/prop";
+const X_FRAME: &str = "fpvhorizon:drone/x_frame";
+const DUCTED: &str = "fpvhorizon:drone/ducted";
+const PROP: &str = "fpvhorizon:drone/prop";
 pub const MODEL_IDS: [&str; 3] = [X_FRAME, DUCTED, PROP];
 
 /// A model unit is 1/16 block once baked; the models are drawn in centimetres (0.01 block).

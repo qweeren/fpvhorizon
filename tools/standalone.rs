@@ -2,6 +2,6 @@
 // Compiles the pure Rust core without game dependencies.
 
 #[path = "../core/mod.rs"]
-pub mod fpvdrone_core;
+pub mod fpvhorizon_core;
 
-pub use fpvdrone_core::*;
+pub use fpvhorizon_core::*;

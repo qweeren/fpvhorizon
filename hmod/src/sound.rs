@@ -8,7 +8,7 @@ use mod_api::{ClientHost, SoundPlay, SoundRef, SoundSource};
 
 /// Two octaves, a semitone a band: pitch 0.5 (band 0) to 2.0 (band 24).
 const BANDS: usize = 25;
-const MOTOR: &str = "fpvdrone:motor";
+const MOTOR: &str = "fpvhorizon:motor";
 const WIND: &str = "minecraft:item.elytra.flying";
 /// A fade to 0 stops a sound for good: quiet loops sit just above it.
 const SILENT: f32 = 0.001;

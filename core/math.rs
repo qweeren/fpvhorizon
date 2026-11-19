@@ -1,4 +1,4 @@
-// 3D vector and Quaternion math for FPV Drone simulation.
+// 3D vector and Quaternion math for FPV Horizon simulation.
 // Implements vector arithmetic, projections, and quaternion rotations matching JOML / Minecraft conventions.
 
 use std::f32::consts::PI;

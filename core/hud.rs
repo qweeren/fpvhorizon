@@ -1,4 +1,4 @@
-// FPV Drone HUD gimbal overlays (Betaflight style stick displays).
+// FPV Horizon HUD gimbal overlays (Betaflight style stick displays).
 // Port of DroneHud.java.
 
 pub const BOX_SIZE: i32 = 56;

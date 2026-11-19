@@ -204,7 +204,7 @@ impl DroneBuildConfig {
     }
 
     pub fn to_properties(&self) -> String {
-        let mut out = String::from("# FPV Drone build config. SI units: kg, m, rpm/V.\n");
+        let mut out = String::from("# FPV Horizon build config. SI units: kg, m, rpm/V.\n");
         for param in BuildParam::ALL {
             out.push_str(&format!("{}={}\n", param.key(), self.get(param)));
         }

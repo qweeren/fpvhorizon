@@ -144,7 +144,7 @@ impl PhysicsConfig {
     }
 
     pub fn to_properties(&self) -> String {
-        let mut out = String::from("# FPV Drone physics constants, in SI units.\n");
+        let mut out = String::from("# FPV Horizon physics constants, in SI units.\n");
         for param in PhysicsParam::ALL {
             out.push_str(&format!("{}={}\n", param.key(), self.get(param)));
         }
