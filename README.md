@@ -69,3 +69,11 @@ python tools/package.py --install
 ## Releasing
 
 Push a tag matching the version in `hmod/horizon-mod.toml` (for example `v2.0.0`). GitHub Actions builds the `.hmod` and attaches it to a GitHub Release.
+
+## Credits
+
+The flight physics, drone builds, rates and controller logic in `core/` started as a Rust port of the [Minecraft FPV](https://github.com/minecraft-fpv/mfpv-client) mod by its authors, licensed under GPL-3.0. FPV Horizon has since been rebuilt for Horizon with its own models, sounds, OSD, presets and gamepad support.
+
+## Licence
+
+FPV Horizon is licensed under the GNU General Public License v3.0 only (GPL-3.0-only). See [LICENSE](LICENSE).
