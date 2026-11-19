@@ -1,0 +1,45 @@
+name: Build
+
+# Push a tag like v2.0.0 to build fpvhorizon.hmod and attach it to a GitHub Release.
+# Run it by hand from the Actions tab to just build the .hmod as a downloadable artifact.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Package .hmod
+        run: python tools/package.py
+
+      - name: Check tag matches manifest version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('hmod/horizon-mod.toml','rb'))['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in hmod/horizon-mod.toml"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fpvhorizon
+          path: dist/*.hmod
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.hmod
+          generate_release_notes: true
