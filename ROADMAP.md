@@ -6,7 +6,7 @@
 - [x] GPL-3.0 licence, credit to Minecraft FPV
 - [x] Release workflow: `cargo horizon-mod build` + `check`, SHA-256 in the release
 - [x] Temporary icon
-- [ ] Trial build passes in GitHub Actions, tag `v0.9.0`
+- [x] Trial build passes in GitHub Actions, release `v0.9.0`
 - [ ] Submit to the horizon-mods registry (`mods/fpvhorizon.toml` on the fork)
 
 ## Polish before 1.0
