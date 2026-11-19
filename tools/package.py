@@ -67,12 +67,6 @@ def main() -> int:
             archive.writestr(info, data)
     print(f"wrote {out} ({out.stat().st_size} bytes, {len(files)} files, {mod_id} {version})")
 
-    for stale in (ROOT / "dist" / f"{mod_id}.hnmod", ROOT / "dist" / mod_id):
-        if stale.is_file():
-            stale.unlink()
-        elif stale.is_dir():
-            shutil.rmtree(stale)
-
     if args.install is not None:
         if args.install:
             targets = [Path(args.install)]
@@ -99,12 +93,6 @@ def install_to_instance(game: Path, out: Path, mod_id: str) -> None:
     dst = target / out.name
     shutil.copyfile(out, dst)
     print(f"installed {dst}")
-
-    # The old .hnmod format no longer loads; don't leave it beside the .hmod.
-    for stale in (target / f"{mod_id}.hnmod", target / f"{mod_id}.origin.json"):
-        if stale.is_file():
-            stale.unlink()
-            print(f"removed {stale}")
 
     # A mod copied in by hand is off until horizon-mods.txt turns it on.
     mods_txt = game / "horizon-mods.txt"

@@ -1,62 +1,71 @@
-# FPV Horizon (Rust)
+# FPV Horizon
 
 FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic quadcopter physics, Betaflight-style rates, and acro flight mechanics inside Horizon.
 
 ## Features
 
-- **Advanced Quadcopter Physics Engine**:
+- **Quadcopter physics**:
   - Full 6-DoF aerodynamic simulation.
   - Blade element theory with multi-section propeller lift and drag curves.
-  - Electric motor dynamics with back-EMF, winding resistance, and thermal modeling (Joule heating and convective cooling).
-  - Battery voltage sag curves under throttle.
-  - Ground collision resolution with glancing angles and elastic bouncing.
-- **Betaflight Rate System**:
-  - RC Rate, Super Rate, and Expo for Roll, Pitch, and Yaw.
-  - Linear stick shaping with configurable deadzones.
-  - 3D mode (reversible throttle) option.
-- **On-Screen Gimbal HUD**:
-  - Dual gimbal stick position indicators (Throttle/Yaw on left, Roll/Pitch on right).
-  - Visual crosshairs with real-time marker tracking.
-- **Native Horizon Mixin Architecture**:
-  - Pure, game-agnostic Rust core in `core/` with 100% unit-tested math and physics.
-  - Clean Horizon adapter in `mixins/fpvhorizon/` hooking into `native_tick`, `native_hud`, `native_key`, `native_movement_input`, and `native_settings`.
+  - Electric motor dynamics with back-EMF, winding resistance, and thermal modelling (Joule heating and convective cooling).
+  - Battery voltage sag under throttle.
+  - Block collisions with glancing angles and elastic bouncing.
+- **Real drone presets**: 5" freestyle and race quads, a 3.5" cinewhoop, a 75mm whoop and a 7.5" long-range build, or your own custom build.
+- **Betaflight rates**: RC Rate, Super Rate and Expo for roll, pitch and yaw, configurable deadzone, and an optional 3D mode (reversible throttle).
+- **FPV view**: the camera rolls with the drone, with an adjustable field of view, an OSD and stick gimbal overlays.
+- **Gamepad support**: fly with a controller's sticks, or with mouse and keyboard.
+- **Motor and wind sound**.
 
 ## Controls
 
-| Key | Action |
-|---|---|
-| **H** | Toggle Drone Flight Mode |
-| **Mouse X / Y** | Roll & Pitch (Acro mode control) |
-| **W / S** (or **Up / Down**) | Throttle Up / Down |
-| **A / D** (or **Left / Right**) | Yaw Left / Right |
+| Keyboard | Gamepad | Action |
+|---|---|---|
+| **H** | **L1 + R1** | Put the drone down and switch to its camera / return to your own eyes |
+| **R** | **Triangle** | Arm / disarm |
+| **V** | **D-pad up** | Switch view |
+| **[** / **]** | **D-pad left / right** | Change drone (on the ground) |
+| **Backspace** | **Square** | Reset the drone |
+| **Mouse X / Y** | Right stick | Roll and pitch |
+| **W / S** (or **Up / Down**) | Left stick up / down | Throttle |
+| **A / D** (or **Left / Right**) | Left stick left / right | Yaw |
 
 ## Settings (Options > Mods > FPV Horizon)
 
-- **Drone Mode**: Toggle flight on/off.
-- **3D Mode**: Toggle between standard throttle (0% to 100%) and 3D acrobatic throttle (-100% to +100%).
-- **Camera Angle**: Cycle camera up-tilt angle (10°, 20°, 30°, 45°).
-- **Reset Drone**: Restore default build and physics parameters.
+- **Drone**: pick a preset, or turn on **Custom Build** to set mass, battery, motors and props with the Build sliders.
+- **Rates**: RC Rate, Super Rate and Expo per axis.
+- **Flight**: mouse sensitivity, deadzone, gravity, 3D mode, and stick-centre hover for gamepads.
+- **View**: FPV field of view, video range, hiding the HUD while flying, and the stick gimbals.
+- **Sound**: motor and wind volume.
+- **Physics**: air density, drag and motor thermal constants.
 
-## Building & Packaging
+## Project layout
 
-### Running Unit Tests
+- `core/`: the game-agnostic drone simulation (physics, controller, collision, presets), unit-tested on its own.
+- `hmod/`: the Horizon mod: `horizon-mod.toml`, the mod crate in `src/`, its mixins in `src/mixins/`, and assets.
+- `tools/`: packaging and asset-generation scripts.
 
-Run the standalone core test suite (requires no game files or running client):
+## Building
+
+Run the core unit tests (no game files needed):
 
 ```bash
 cargo test --lib
 ```
 
-### Packaging `.hmod`
-
-To package the bundle into `dist/fpvhorizon.hmod`:
+Package the mod into `dist/fpvhorizon.hmod`:
 
 ```bash
 python tools/package.py
 ```
 
-To package and automatically install to Horizon's native mods folder:
+Package and install it into Horizon's native mods folder:
 
 ```bash
 python tools/package.py --install
 ```
+
+`python build.py` runs the tests, then packages and installs in one step.
+
+## Releasing
+
+Push a tag matching the version in `hmod/horizon-mod.toml` (for example `v2.0.0`). GitHub Actions builds the `.hmod` and attaches it to a GitHub Release.
