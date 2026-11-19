@@ -5,3 +5,6 @@ target/
 .horizon/
 
 __pycache__/
+
+# Packaged .hmod (built and published by CI)
+dist/
