@@ -1,0 +1,7 @@
+# Cargo build output
+target/
+
+# SDK that `cargo horizon-mod` fetches
+.horizon/
+
+__pycache__/
