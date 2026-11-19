@@ -20,10 +20,15 @@ pub enum BuildParam {
     MotorWidth,
     MotorHeight,
     CameraAngle,
+    /// How much of the blade-element model's lift the props really make: frame blockage,
+    /// ducts and prop quality. Calibrates a build to its real thrust-to-weight.
+    Efficiency,
+    /// The battery pack's capacity, mAh.
+    BatteryMah,
 }
 
 impl BuildParam {
-    pub const ALL: [BuildParam; 10] = [
+    pub const ALL: [BuildParam; 12] = [
         BuildParam::DroneMass,
         BuildParam::BatteryCells,
         BuildParam::MotorKv,
@@ -34,6 +39,8 @@ impl BuildParam {
         BuildParam::MotorWidth,
         BuildParam::MotorHeight,
         BuildParam::CameraAngle,
+        BuildParam::Efficiency,
+        BuildParam::BatteryMah,
     ];
 
     pub fn key(self) -> &'static str {
@@ -48,14 +55,16 @@ impl BuildParam {
             BuildParam::MotorWidth => "motor_width",
             BuildParam::MotorHeight => "motor_height",
             BuildParam::CameraAngle => "camera_angle",
+            BuildParam::Efficiency => "efficiency",
+            BuildParam::BatteryMah => "battery_mah",
         }
     }
 
     pub fn default_value(self) -> f32 {
         match self {
             BuildParam::DroneMass => 0.65,
-            BuildParam::BatteryCells => 2.0,
-            BuildParam::MotorKv => 2000.0,
+            BuildParam::BatteryCells => 4.0,
+            BuildParam::MotorKv => 2400.0,
             BuildParam::Blades => 3.0,
             BuildParam::PropRadius => 0.0635,
             BuildParam::PropPitch => 0.1,
@@ -63,21 +72,25 @@ impl BuildParam {
             BuildParam::MotorWidth => 0.023,
             BuildParam::MotorHeight => 0.006,
             BuildParam::CameraAngle => 10.0,
+            BuildParam::Efficiency => 0.42,
+            BuildParam::BatteryMah => 1400.0,
         }
     }
 
     pub fn min(self) -> f32 {
         match self {
-            BuildParam::DroneMass => 0.1,
+            BuildParam::DroneMass => 0.02,
             BuildParam::BatteryCells => 1.0,
             BuildParam::MotorKv => 500.0,
             BuildParam::Blades => 2.0,
-            BuildParam::PropRadius => 0.025,
+            BuildParam::PropRadius => 0.015,
             BuildParam::PropPitch => 0.03,
-            BuildParam::PropWidth => 0.005,
+            BuildParam::PropWidth => 0.003,
             BuildParam::MotorWidth => 0.01,
-            BuildParam::MotorHeight => 0.003,
+            BuildParam::MotorHeight => 0.0015,
             BuildParam::CameraAngle => 0.0,
+            BuildParam::Efficiency => 0.1,
+            BuildParam::BatteryMah => 100.0,
         }
     }
 
@@ -85,7 +98,7 @@ impl BuildParam {
         match self {
             BuildParam::DroneMass => 2.0,
             BuildParam::BatteryCells => 8.0,
-            BuildParam::MotorKv => 5000.0,
+            BuildParam::MotorKv => 30000.0,
             BuildParam::Blades => 6.0,
             BuildParam::PropRadius => 0.15,
             BuildParam::PropPitch => 0.25,
@@ -93,12 +106,14 @@ impl BuildParam {
             BuildParam::MotorWidth => 0.06,
             BuildParam::MotorHeight => 0.03,
             BuildParam::CameraAngle => 70.0,
+            BuildParam::Efficiency => 1.5,
+            BuildParam::BatteryMah => 10000.0,
         }
     }
 
     pub fn step(self) -> f32 {
         match self {
-            BuildParam::DroneMass => 0.005,
+            BuildParam::DroneMass => 0.001,
             BuildParam::BatteryCells => 1.0,
             BuildParam::MotorKv => 50.0,
             BuildParam::Blades => 1.0,
@@ -106,8 +121,10 @@ impl BuildParam {
             BuildParam::PropPitch => 0.001,
             BuildParam::PropWidth => 0.0005,
             BuildParam::MotorWidth => 0.0005,
-            BuildParam::MotorHeight => 0.0005,
+            BuildParam::MotorHeight => 0.0001,
             BuildParam::CameraAngle => 1.0,
+            BuildParam::Efficiency => 0.01,
+            BuildParam::BatteryMah => 50.0,
         }
     }
 
@@ -122,13 +139,13 @@ impl BuildParam {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DroneBuildConfig {
-    pub values: [f32; 10],
+    pub values: [f32; 12],
     pub version: u32,
 }
 
 impl Default for DroneBuildConfig {
     fn default() -> Self {
-        let mut vals = [0.0; 10];
+        let mut vals = [0.0; 12];
         for (i, p) in BuildParam::ALL.iter().enumerate() {
             vals[i] = p.default_value();
         }
@@ -203,7 +220,7 @@ mod tests {
     fn test_build_defaults_and_masses() {
         let cfg = DroneBuildConfig::default();
         assert_eq!(cfg.get(BuildParam::DroneMass), 0.65);
-        assert_eq!(cfg.get(BuildParam::BatteryCells), 2.0);
+        assert_eq!(cfg.get(BuildParam::BatteryCells), 4.0);
         let m_mass = cfg.motor_mass();
         assert!(m_mass > 0.01 && m_mass < 0.1);
         let b_mass = cfg.blade_mass();

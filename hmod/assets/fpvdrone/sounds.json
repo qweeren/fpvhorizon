@@ -1,0 +1,7 @@
+{
+  "motor": {
+    "sounds": [
+      { "name": "fpvdrone:motor" }
+    ]
+  }
+}

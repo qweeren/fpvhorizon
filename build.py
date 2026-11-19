@@ -2,10 +2,10 @@
 """Build and package script for FPV Drone Horizon mod.
 
 Usage:
-    python build.py             # Run tests, build .hnmod, and install to Horizon launcher
+    python build.py             # Run tests, build .hmod, and install to Horizon launcher
     python build.py --test      # Run unit tests only
     python build.py --no-test   # Skip tests and package/install
-    python build.py --dist-only # Package .hnmod without installing
+    python build.py --dist-only # Package .hmod without installing
 """
 
 import os
@@ -47,7 +47,7 @@ def run_tests():
 
 
 def package_and_install(install=True, game_dir=None):
-    print("==> Packaging mod into .hnmod...")
+    print("==> Packaging mod into .hmod...")
     package_script = ROOT / "tools" / "package.py"
     args = [sys.executable, str(package_script)]
     if install:
@@ -73,7 +73,7 @@ def main():
     install = "--dist-only" not in args
     success = package_and_install(install=install)
     if success and install:
-        print("\nSuccessfully built and installed fpvdrone.hnmod into Horizon Launcher!")
+        print("\nSuccessfully built and installed fpvdrone.hmod into Horizon Launcher!")
     return 0 if success else 1
 
 

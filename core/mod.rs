@@ -10,6 +10,7 @@ pub mod math;
 pub mod orientations;
 pub mod physics;
 pub mod physics_settings;
+pub mod presets;
 pub mod registry;
 pub mod state;
 
@@ -21,5 +22,6 @@ pub use math::{Quat, Vec3f};
 pub use orientations::DroneOrientations;
 pub use physics::AdvancedPhysicsCore;
 pub use physics_settings::{PhysicsConfig, PhysicsParam};
+pub use presets::{Frame, Preset, PRESETS};
 pub use registry::DroneRegistry;
-pub use state::DroneState;
+pub use state::{DroneState, FrameInput, Sticks};

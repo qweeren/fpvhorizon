@@ -1,0 +1,71 @@
+id = "fpvdrone"
+name = "FPV Drone"
+version = "2.0.0"
+description = "Fly real FPV drones as in a sim. H (L1+R1) puts your drone down and takes you to its camera; R (Triangle) arms; V views; [ ] changes drone; Backspace resets."
+authors = ["Eren"]
+license = "GPL-3.0-only"
+api = "0.2"
+side = "client"
+capabilities = ["registries"]
+
+# Mixins change game code, so this mod is pinned to the exact game build it is made for.
+# Move both pins together to the instance's build (horizon-launcher versions --installed;
+# mixins = horizon_mod_package::mixins_tool::REV at that build).
+[native]
+game = "26.3"
+horizon = "0b14f8acfd97fa2c750e42795249dcc981178ca4"
+mixins = "e59da9094f0c2fdda6c627fe9eff22dec6a906f0"
+
+# The mod API has no write to the local player's position, velocity or flight, so the drone
+# moves the player from a support module, run after each client tick.
+[[native.module]]
+id = "adapter"
+file = "crates/horizon-client/src/game/native_hooks/client_tick_post.rs"
+name = "fpvdrone_adapter"
+source = "src/adapter.rs"
+
+[[native.mixin]]
+id = "tick"
+target = "horizon_client::game::native_hooks::client_tick_post::Game<'_>::native_client_tick_post"
+kind = "HEAD"
+helper = "src/mixins/tick.rs"
+bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }]
+
+# While flying, the mouse (and a pad's look stick) turns the drone, not the player's head:
+# look_turn is the one way both reach Entity.turn.
+[[native.mixin]]
+id = "turn"
+target = "horizon_client::game::pointer_capture::Game<'_>::look_turn"
+kind = "HEAD"
+cancellable = true
+helper = "src/mixins/turn.rs"
+bindings = [
+  { name = "xo", ty = "f64", value = "x" },
+  { name = "yo", ty = "f64", value = "y" },
+]
+
+# The camera rolls with the drone. camera_pose sets only yaw and pitch, and camera_shake is
+# capped at 10 degrees, so the roll goes into the view-bob matrix (bob, then the camera shake)
+# the game multiplies into the projection. A RETURN on bob_matrix is refused
+# (E_UNSUPPORTED_CONTROL_FLOW: a call under a reference in its tail), so this changes the shake
+# call's value inside it.
+[[native.mixin]]
+id = "roll"
+target = "horizon_client::game::fov::Game<'_>::bob_matrix"
+kind = "MODIFY_EXPRESSION_VALUE"
+selector = "self.native_shake_matrix(partial)"
+require = 1
+ordinal = 0
+helper = "src/mixins/roll.rs"
+bindings = [{ name = "value", ty = "glam::Mat4", value = "$value" }]
+
+# While a drone is out the pad flies it: its buttons must not also do their game actions
+# (Triangle opens the inventory, L1/R1 cycle the hotbar...). Presses stop here; releases go
+# through so nothing stays held. The sticks reach the drone through the tick module.
+[[native.mixin]]
+id = "pad"
+target = "horizon_client::game::pad::Game<'_>::pad_action"
+kind = "HEAD"
+cancellable = true
+helper = "src/mixins/pad.rs"
+bindings = [{ name = "down", ty = "bool", value = "down" }]

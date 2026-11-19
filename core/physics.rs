@@ -16,8 +16,8 @@ pub const PROP_SECTIONS: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct AdvancedPhysicsCore {
-    applied_build_version: u32,
-    applied_physics_version: u32,
+    applied_build: Option<DroneBuildConfig>,
+    applied_physics: Option<PhysicsConfig>,
 
     air_density: f32,
     drone_density: f32,
@@ -39,6 +39,8 @@ pub struct AdvancedPhysicsCore {
     bell_mass: f32,
     blade_mass: f32,
     kv: f32,
+    efficiency: f32,
+    battery_mah: f32,
 
     ref_resistance: f32,
     heat_cap: f32,
@@ -47,11 +49,18 @@ pub struct AdvancedPhysicsCore {
     drag_factor: f32,
     max_time_step: f32,
     hover_throttle: f32,
+    gravity: f32,
+    applied_gravity: f32,
 
     pub internal_energy: [f32; 4],
     pub temp: [f32; 4],
     pub motor_vel: [f32; 4],
     pub motor_pos: [f32; 4],
+
+    /// Charge drawn from the pack, mAh.
+    pub mah_used: f32,
+    /// The current the pack is giving, amps.
+    pub pack_current: f32,
 
     pub velocity: Vec3f,
     pub drone_up: Vec3f,
@@ -61,8 +70,8 @@ pub struct AdvancedPhysicsCore {
 impl Default for AdvancedPhysicsCore {
     fn default() -> Self {
         let mut core = Self {
-            applied_build_version: 0,
-            applied_physics_version: 0,
+            applied_build: None,
+            applied_physics: None,
             air_density: 1.225,
             drone_density: 1500.0,
             air_drag_coefficient: 1.05,
@@ -82,6 +91,8 @@ impl Default for AdvancedPhysicsCore {
             bell_mass: 0.012,
             blade_mass: 0.0015,
             kv: 2000.0 * 0.10471976,
+            efficiency: 1.0,
+            battery_mah: 1400.0,
             ref_resistance: 0.03,
             heat_cap: 13.2,
             motor_surface_area: 0.0016,
@@ -89,10 +100,14 @@ impl Default for AdvancedPhysicsCore {
             drag_factor: 0.005,
             max_time_step: 0.005,
             hover_throttle: 0.5,
+            gravity: GRAVITY,
+            applied_gravity: GRAVITY,
             internal_energy: [0.0; 4],
             temp: [REF_TEMP; 4],
             motor_vel: [0.0; 4],
             motor_pos: [0.0; 4],
+            mah_used: 0.0,
+            pack_current: 0.0,
             velocity: Vec3f::ZERO,
             drone_up: Vec3f::UP,
             drone_left: Vec3f::LEFT,
@@ -107,11 +122,16 @@ impl Default for AdvancedPhysicsCore {
 
 impl AdvancedPhysicsCore {
     pub fn apply_build_if_changed(&mut self, build: &DroneBuildConfig, physics: &PhysicsConfig) {
-        if build.version == self.applied_build_version && physics.version == self.applied_physics_version {
+        // Compared by value: two builds made the same way share a version number.
+        if self.applied_build.as_ref() == Some(build)
+            && self.applied_physics.as_ref() == Some(physics)
+            && self.gravity == self.applied_gravity
+        {
             return;
         }
-        self.applied_build_version = build.version;
-        self.applied_physics_version = physics.version;
+        self.applied_build = Some(*build);
+        self.applied_physics = Some(*physics);
+        self.applied_gravity = self.gravity;
 
         self.air_density = physics.get(PhysicsParam::AirDensity);
         self.drone_density = physics.get(PhysicsParam::DroneDensity);
@@ -133,6 +153,8 @@ impl AdvancedPhysicsCore {
         self.bell_mass = build.bell_mass();
         self.blade_mass = build.blade_mass();
         self.kv = build.get(BuildParam::MotorKv) * 0.10471976;
+        self.efficiency = build.get(BuildParam::Efficiency);
+        self.battery_mah = build.get(BuildParam::BatteryMah);
 
         let r = self.motor_width * 0.5;
         let poles = Self::get_poles(self.motor_width);
@@ -211,8 +233,12 @@ impl AdvancedPhysicsCore {
         self.drone_left = self.drone_up.cross(drone_look);
         self.velocity = *vel;
 
-        let vbat = self.get_battery_voltage(throttle.clamp(-1.0, 1.0));
-        let gravity_force = Vec3f::new(0.0, -GRAVITY * self.drone_mass, 0.0);
+        // The ESCs give the motors the pack's voltage times the throttle; the pack sags under
+        // the current it gave last step.
+        let throttle = throttle.clamp(-1.0, 1.0);
+        let vbat = self.pack_voltage() * throttle;
+        let mut charge = 0.0;
+        let gravity_force = Vec3f::new(0.0, -self.gravity * self.drone_mass, 0.0);
 
         let max_iterations = (dt / self.max_time_step) as usize + 10;
         let mut time_processed = 0.0;
@@ -237,11 +263,85 @@ impl AdvancedPhysicsCore {
                 self.motor_vel[motor] = next_motor_vel;
             }
 
+            // The pack's current: each ESC draws its motor's current times its duty cycle.
+            let current: f32 = (0..4)
+                .map(|m| {
+                    let use_vbat = (if m % 2 == 0 { -1.0 } else { 1.0 }) * vbat;
+                    let i = self.get_current(self.get_hot_resistance(self.temp[m]), use_vbat, self.motor_vel[m]);
+                    (i * use_vbat.signum()).max(0.0) * throttle.abs()
+                })
+                .sum();
+            self.pack_current = current;
+            charge += current * time_step;
+
             self.velocity = self.velocity.fma(time_step / self.drone_mass, net_force);
             time_processed += time_step;
         }
 
         *vel = self.velocity;
+        self.mah_used += charge * 1000.0 / 3600.0;
+    }
+
+    /// A full pack again.
+    pub fn new_pack(&mut self) {
+        self.mah_used = 0.0;
+        self.pack_current = 0.0;
+    }
+
+    /// The pack's charge left, 0..1.
+    pub fn charge(&self) -> f32 {
+        (1.0 - self.mah_used / self.battery_mah.max(1.0)).clamp(0.0, 1.0)
+    }
+
+    pub fn battery_capacity(&self) -> f32 {
+        self.battery_mah
+    }
+
+    pub fn cells(&self) -> i32 {
+        self.battery_cells
+    }
+
+    /// A LiPo cell's resting voltage at `charge` (0..1) left.
+    pub fn cell_open_voltage(charge: f32) -> f32 {
+        const CURVE: [(f32, f32); 7] =
+            [(0.0, 3.2), (0.05, 3.45), (0.1, 3.55), (0.2, 3.65), (0.5, 3.8), (0.9, 4.05), (1.0, 4.2)];
+        let c = charge.clamp(0.0, 1.0);
+        for w in CURVE.windows(2) {
+            let ((c0, v0), (c1, v1)) = (w[0], w[1]);
+            if c <= c1 {
+                return v0 + (v1 - v0) * (c - c0) / (c1 - c0);
+            }
+        }
+        4.2
+    }
+
+    /// The pack's voltage under load: its cells' resting voltage less the sag of the current
+    /// through their internal resistance (about 6 mΩ a cell for a 1300 mAh pack).
+    pub fn pack_voltage(&self) -> f32 {
+        let cells = self.battery_cells as f32;
+        let cell_resistance = 0.006 * 1300.0 / self.battery_mah.max(50.0);
+        let cell = Self::cell_open_voltage(self.charge()) - self.pack_current * cell_resistance;
+        cells * cell.max(2.8)
+    }
+
+    /// Gravity in m/s² (blocks/s²). Minecraft's own falls at about 32 blocks/s², so real
+    /// gravity (9.8) feels floaty there.
+    pub fn set_gravity(&mut self, gravity: f32) {
+        self.gravity = gravity.clamp(1.0, 50.0);
+    }
+
+    /// The throttle that holds altitude with the current build and gravity.
+    pub fn hover(&self) -> f32 {
+        self.hover_throttle
+    }
+
+    /// The motors' mean speed as a fraction of their no-load top speed, 0..1.
+    pub fn rpm_fraction(&self) -> f32 {
+        let max = self.kv * self.battery_cells as f32 * 4.2;
+        if max <= 0.0 {
+            return 0.0;
+        }
+        (self.motor_vel.iter().map(|v| v.abs()).sum::<f32>() / 4.0 / max).clamp(0.0, 1.0)
     }
 
     pub fn is_overheat(&self) -> bool {
@@ -254,7 +354,7 @@ impl AdvancedPhysicsCore {
     }
 
     fn find_hover_throttle(&mut self) -> f32 {
-        let weight = self.drone_mass * GRAVITY;
+        let weight = self.drone_mass * self.gravity;
         let mut lo = 0.0;
         let mut hi = 1.0;
         for _ in 0..16 {
@@ -271,6 +371,11 @@ impl AdvancedPhysicsCore {
             return 1.0;
         }
         (lo + hi) * 0.5
+    }
+
+    /// Thrust along the drone's up at the motors' current speed, newtons.
+    pub fn static_thrust(&self) -> f32 {
+        self.total_thrust()
     }
 
     fn total_thrust(&self) -> f32 {
@@ -388,7 +493,7 @@ impl AdvancedPhysicsCore {
                 let lift_coeff = Self::get_prop_lift_coefficient(aoa);
 
                 let drag_force = self.get_prop_drag_force(free_vel_rel_prop_planar, drag_coeff, aoa, section_length, section_width);
-                let lift_force = self.get_prop_lift_force(free_vel_rel_prop_planar, motor_to_prop, lift_coeff, section_length, section_width);
+                let lift_force = self.get_prop_lift_force(free_vel_rel_prop_planar, motor_to_prop, lift_coeff, section_length, section_width).mul(self.efficiency);
 
                 net_drag_torque = net_drag_torque.add(motor_to_prop.cross(drag_force).mul(section_radius));
                 net_force = net_force.add(drag_force).add(lift_force);
@@ -501,8 +606,7 @@ impl AdvancedPhysicsCore {
     }
 
     fn get_battery_voltage(&self, throt: f32) -> f32 {
-        let sag = 4.0 + throt.abs() * -0.4000001;
-        sag * (self.battery_cells as f32) * throt
+        self.pack_voltage() * throt
     }
 
     fn get_internal_energy_lost(&self, temp: f32, time_step: f32) -> f32 {
@@ -551,6 +655,63 @@ mod tests {
     }
 
     #[test]
+    fn default_build_is_a_racer() {
+        // A 5" racer hovers around a quarter throttle with a thrust-to-weight near 10.
+        let mut core = AdvancedPhysicsCore::default();
+        let b = DroneBuildConfig::default();
+        let p = PhysicsConfig::default();
+        let hover = core.get_hover_throttle(&b, &p);
+        assert!(hover > 0.15 && hover < 0.4, "hover {hover}");
+        core.reset(1.0, &b, &p);
+        let twr = core.total_thrust() / (b.get(BuildParam::DroneMass) * GRAVITY);
+        assert!(twr > 6.0, "thrust-to-weight {twr}");
+    }
+
+    #[test]
+    fn more_gravity_needs_more_hover_throttle() {
+        let b = DroneBuildConfig::default();
+        let p = PhysicsConfig::default();
+        let mut core = AdvancedPhysicsCore::default();
+        let real = core.get_hover_throttle(&b, &p);
+        core.set_gravity(20.0);
+        let heavy = core.get_hover_throttle(&b, &p);
+        assert!(heavy > real, "{heavy} should exceed {real}");
+    }
+
+    #[test]
+    fn a_new_build_takes_even_with_the_same_version() {
+        let mut core = AdvancedPhysicsCore::default();
+        let p = PhysicsConfig::default();
+        let mut six = DroneBuildConfig::default();
+        six.set(BuildParam::BatteryCells, 6.0);
+        let mut four = DroneBuildConfig::default();
+        four.set(BuildParam::BatteryCells, 4.0);
+        assert_eq!(six.version, four.version);
+        core.reset(0.0, &six, &p);
+        assert_eq!(core.cells(), 6);
+        core.reset(0.0, &four, &p);
+        assert_eq!(core.cells(), 4);
+    }
+
+    #[test]
+    fn the_pack_drains_and_sags() {
+        let mut core = AdvancedPhysicsCore::default();
+        let b = DroneBuildConfig::default();
+        let p = PhysicsConfig::default();
+        let hover = core.get_hover_throttle(&b, &p);
+        core.reset(hover, &b, &p);
+        let rested = core.pack_voltage();
+        let mut vel = Vec3f::ZERO;
+        for _ in 0..20 * 60 {
+            core.step(0.05, 1.0, Quat::IDENTITY, &mut vel, &b, &p);
+            vel = Vec3f::ZERO;
+        }
+        eprintln!("1 min full throttle: {:.0} mAh, {:.1} A, {:.2} V (rested {:.2} V)", core.mah_used, core.pack_current, core.pack_voltage(), rested);
+        assert!(core.mah_used > 100.0, "a minute at full throttle uses real charge");
+        assert!(core.pack_voltage() < rested, "the pack sags and drains");
+    }
+
+    #[test]
     fn test_physics_step_produces_motion() {
         let mut core = AdvancedPhysicsCore::default();
         let b = DroneBuildConfig::default();
@@ -564,3 +725,5 @@ mod tests {
         assert!(vel.y > 0.0, "Drone should accelerate upward under full throttle, got vel.y = {}", vel.y);
     }
 }
+
+

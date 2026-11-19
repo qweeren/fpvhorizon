@@ -34,9 +34,9 @@ pub const SUPER_RATE_MAX: f32 = 0.99;
 pub const EXPO_MIN: f32 = 0.0;
 pub const EXPO_MAX: f32 = 1.0;
 
-pub const DEFAULT_RC_RATE: f32 = 0.67;
-pub const DEFAULT_SUPER_RATE: f32 = 0.2;
-pub const DEFAULT_EXPO: f32 = 0.67;
+pub const DEFAULT_RC_RATE: f32 = 1.0;
+pub const DEFAULT_SUPER_RATE: f32 = 0.7;
+pub const DEFAULT_EXPO: f32 = 0.0;
 pub const DEFAULT_DEADZONE: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -46,6 +46,8 @@ pub struct ControllerConfig {
     pub super_rate: [f32; 4],
     pub expo: [f32; 4],
     pub mode_3d: bool,
+    /// A self-centring throttle stick (a gamepad): centre is hover throttle, not 50%.
+    pub throttle_centre_hover: bool,
     pub show_axis_values: bool,
     pub show_head_debug: bool,
 }
@@ -58,6 +60,7 @@ impl Default for ControllerConfig {
             super_rate: [DEFAULT_SUPER_RATE; 4],
             expo: [DEFAULT_EXPO; 4],
             mode_3d: false,
+            throttle_centre_hover: true,
             show_axis_values: false,
             show_head_debug: false,
         }
