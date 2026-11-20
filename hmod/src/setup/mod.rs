@@ -121,7 +121,7 @@ struct Ui {
     /// The toggles' knobs, easing to their side.
     knobs: HashMap<usize, f32>,
     /// The thrust-to-weight and hover of the last build looked at.
-    performance: Option<([f32; 12], (f32, f32))>,
+    performance: Option<([f32; crate::drone::BuildParam::ALL.len()], (f32, f32))>,
     /// A held D-pad direction and how long it has been held, for repeats.
     held: Option<(u8, u32)>,
 }

@@ -241,6 +241,7 @@ fn build_words(p: BuildParam) -> (&'static str, &'static str, Unit) {
         B::CameraAngle => ("Camera uptilt", "How far the camera tilts up. Fast flying wants more.", Unit::Suffix(0, "°")),
         B::Efficiency => ("Prop efficiency", "How much of the props' ideal lift the frame really gets.", Unit::Num(2)),
         B::BatteryMah => ("Battery capacity", "Bigger packs fly longer and weigh more.", Unit::Suffix(0, " mAh")),
+        B::Wheelbase => ("Wheelbase", "Motor to motor, corner to corner. Wider frames turn more lazily.", Unit::Millimetres(0)),
     }
 }
 
@@ -457,6 +458,8 @@ pub fn rows(page: Page, custom: bool) -> Vec<Row> {
                 rows.extend([B::PropRadius, B::PropPitch, B::Blades, B::PropWidth, B::Efficiency].map(build));
                 rows.push(Row::Header("MOTORS"));
                 rows.extend([B::MotorWidth, B::MotorHeight].map(build));
+                rows.push(Row::Header("FRAME"));
+                rows.push(build(B::Wheelbase));
                 rows.push(Row::Header("CAMERA"));
                 rows.push(build(B::CameraAngle));
             } else {

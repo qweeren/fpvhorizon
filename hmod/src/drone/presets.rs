@@ -54,6 +54,7 @@ impl Preset {
             (BuildParam::CameraAngle, self.camera_angle),
             (BuildParam::Efficiency, self.efficiency),
             (BuildParam::BatteryMah, self.battery_mah),
+            (BuildParam::Wheelbase, self.wheelbase),
         ] {
             b.set(param, value);
         }

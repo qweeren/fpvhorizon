@@ -1,5 +1,7 @@
 // Advanced physics engine for quadcopter aerodynamics, motor thermodynamics, and dynamics.
 // Based on AdvancedPhysicsCore.java from Minecraft FPV (GPL-3.0, github.com/minecraft-fpv/mfpv-client).
+// FPV Horizon adds the rigid body: each motor's own command, the torques the motors' thrust and
+// spin put on the frame, the frame's moment of inertia, and prop wash.
 
 use super::build::{BuildParam, DroneBuildConfig};
 use super::math::{Quat, Vec3f};
@@ -13,6 +15,24 @@ pub const VAC: f32 = 1.256637e-6;
 pub const MAX_TIME_STEP: f32 = 0.0078125;
 pub const MIN_TIME_STEP: f32 = 0.001;
 pub const PROP_SECTIONS: usize = 5;
+
+/// Each motor's spin as seen from above: -1 clockwise, 1 counter-clockwise. Motors 0..4 are
+/// front right, back right, back left and front left (Betaflight's "props out" spin).
+pub fn spin(motor: usize) -> f32 {
+    if motor % 2 == 0 { -1.0 } else { 1.0 }
+}
+
+/// Where motor `motor` sits on a frame of wheelbase `wheelbase`, in the drone's own axes
+/// (x right, y up, z back).
+pub fn motor_arm(motor: usize, wheelbase: f32) -> Vec3f {
+    let k = wheelbase * 0.5 / std::f32::consts::SQRT_2;
+    match motor % 4 {
+        0 => Vec3f::new(k, 0.0, -k),
+        1 => Vec3f::new(k, 0.0, k),
+        2 => Vec3f::new(-k, 0.0, k),
+        _ => Vec3f::new(-k, 0.0, -k),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct AdvancedPhysicsCore {
@@ -51,6 +71,23 @@ pub struct AdvancedPhysicsCore {
     hover_throttle: f32,
     gravity: f32,
     applied_gravity: f32,
+
+    /// The frame's principal moments of inertia about its x (pitch), y (yaw) and z (roll)
+    /// axes, kg·m².
+    moment_of_inertia: Vec3f,
+    /// Each motor's place on the frame, the drone's own axes.
+    arms: [Vec3f; 4],
+    /// The air speed the props push down at a hover (momentum theory), m/s: sinking at about
+    /// this speed puts them in their own wash.
+    induced_velocity: f32,
+    /// Prop wash: each motor's thrust wobble (filtered noise) and the noise's state.
+    wash_noise: [f32; 4],
+    rng: u32,
+    /// How deep in its own wash the drone is, 0..1.
+    pub prop_wash: f32,
+    /// How hard the motors turn the drone at a hover, rad/s² of roll and pitch per unit of
+    /// differential command.
+    authority: [f32; 2],
 
     pub internal_energy: [f32; 4],
     pub temp: [f32; 4],
@@ -106,6 +143,13 @@ impl Default for AdvancedPhysicsCore {
             hover_throttle: 0.5,
             gravity: GRAVITY,
             applied_gravity: GRAVITY,
+            moment_of_inertia: Vec3f::new(0.002, 0.0035, 0.002),
+            arms: [Vec3f::ZERO; 4],
+            induced_velocity: 7.0,
+            wash_noise: [0.0; 4],
+            rng: 0x9E37_79B9,
+            prop_wash: 0.0,
+            authority: [1.0; 2],
             internal_energy: [0.0; 4],
             temp: [REF_TEMP; 4],
             motor_vel: [0.0; 4],
@@ -181,7 +225,57 @@ impl AdvancedPhysicsCore {
 
         let time_constant = self.ref_resistance * self.kv * self.kv * self.inertia;
         self.max_time_step = time_constant.clamp(MIN_TIME_STEP, MAX_TIME_STEP);
+
+        let wheelbase = build.get(BuildParam::Wheelbase);
+        self.arms = std::array::from_fn(|m| motor_arm(m, wheelbase));
+        self.moment_of_inertia = Self::frame_inertia(self.drone_mass, wheelbase, self.motor_mass + self.blades as f32 * self.blade_mass);
+        let disc_area = 4.0 * PI * self.prop_radius * self.prop_radius;
+        self.induced_velocity = (self.drone_mass * self.gravity / (2.0 * self.air_density * disc_area)).sqrt().max(0.5);
+
         self.hover_throttle = self.find_hover_throttle();
+        self.authority = self.find_authority(wheelbase);
+    }
+
+    /// Roll and pitch authority at a hover: the angular acceleration from moving each motor's
+    /// command by one unit, half of them up and half down, rad/s².
+    fn find_authority(&mut self, wheelbase: f32) -> [f32; 2] {
+        let d = 0.03;
+        let hover = self.hover_throttle;
+        self.reset_state((hover + d).min(1.0));
+        let high = self.total_thrust();
+        self.reset_state((hover - d).max(0.0));
+        let low = self.total_thrust();
+        self.reset_state(1.0);
+        let per_motor = ((high - low) / 4.0 / (2.0 * d)).max(1e-6);
+        let torque = 4.0 * per_motor * wheelbase * 0.5 / std::f32::consts::SQRT_2;
+        [torque / self.moment_of_inertia.z, torque / self.moment_of_inertia.x]
+    }
+
+    /// Roll and pitch authority, rad/s² per unit of differential motor command at a hover.
+    pub fn authority(&self) -> [f32; 2] {
+        self.authority
+    }
+
+    /// A quad's principal moments of inertia, kg·m² about its x (pitch), y (yaw) and z (roll)
+    /// axes: four motors with their props at the ends of the arms, and the rest (battery,
+    /// stack, frame plates) as a box in the middle, as long as 60% of the wheelbase, 30% as
+    /// wide and 20% as tall.
+    pub fn frame_inertia(mass: f32, wheelbase: f32, rotor_mass: f32) -> Vec3f {
+        let rotor = rotor_mass.clamp(0.0, mass * 0.15);
+        let core = mass - 4.0 * rotor;
+        let r2 = wheelbase * wheelbase * 0.25;
+        let (w, h, l) = (0.30 * wheelbase, 0.20 * wheelbase, 0.60 * wheelbase);
+        // Each motor sits r / sqrt(2) off the roll and pitch axes and r off the yaw axis.
+        let motors_rp = 4.0 * rotor * r2 * 0.5;
+        Vec3f::new(
+            core * (h * h + l * l) / 12.0 + motors_rp,
+            core * (w * w + l * l) / 12.0 + 4.0 * rotor * r2,
+            core * (w * w + h * h) / 12.0 + motors_rp,
+        )
+    }
+
+    pub fn moment_of_inertia(&self) -> Vec3f {
+        self.moment_of_inertia
     }
 
     pub fn reset(&mut self, throttle: f32, build: &DroneBuildConfig, physics: &PhysicsConfig) {
@@ -204,11 +298,12 @@ impl AdvancedPhysicsCore {
         self.velocity = Vec3f::ZERO;
         self.drone_up = Vec3f::UP;
         self.drone_left = Vec3f::LEFT;
+        self.wash_noise = [0.0; 4];
+        self.prop_wash = 0.0;
 
         let vbat = self.get_battery_voltage(throttle.clamp(-1.0, 1.0));
         for motor in 0..4 {
-            let use_vbat = (if motor % 2 == 0 { -1.0 } else { 1.0 }) * vbat;
-            self.motor_vel[motor] = self.steady_motor_vel(motor, use_vbat, self.temp[motor]);
+            self.motor_vel[motor] = self.steady_motor_vel(motor, spin(motor) * vbat, self.temp[motor]);
         }
     }
 
@@ -221,7 +316,7 @@ impl AdvancedPhysicsCore {
         let mut hi = direction * self.kv * self.battery_cells as f32 * 4.2;
         for _ in 0..40 {
             let mid = (lo + hi) * 0.5;
-            let accel = self.get_rot_accel(motor, mid, vbat, temp);
+            let accel = self.get_rot_accel(motor, mid, vbat, temp, self.velocity);
             if accel * direction > 0.0 {
                 lo = mid;
             } else {
@@ -231,62 +326,98 @@ impl AdvancedPhysicsCore {
         (lo + hi) * 0.5
     }
 
+    /// `dt` seconds with every motor at `throttle`, the drone held at `orientation`.
     pub fn step(&mut self, dt: f32, throttle: f32, orientation: Quat, vel: &mut Vec3f, build: &DroneBuildConfig, physics: &PhysicsConfig) {
+        let mut q = orientation;
+        let mut omega = Vec3f::ZERO;
+        self.step_airframe(dt, [throttle; 4], &mut q, vel, &mut omega, build, physics);
+    }
+
+    /// `dt` seconds of the whole airframe: each motor driven by its ESC command (`esc`, -1..1,
+    /// the share of the pack's voltage it gets; negative reverses it), the thrust and drag of
+    /// each prop where it sits, and the drone moved and turned by them. `omega` is the drone's
+    /// angular velocity in its own axes (x right, y up, z back), rad/s.
+    #[allow(clippy::too_many_arguments)]
+    pub fn step_airframe(
+        &mut self,
+        dt: f32,
+        esc: [f32; 4],
+        orientation: &mut Quat,
+        vel: &mut Vec3f,
+        omega: &mut Vec3f,
+        build: &DroneBuildConfig,
+        physics: &PhysicsConfig,
+    ) {
         self.apply_build_if_changed(build, physics);
-
-        self.drone_up = orientation.transform_vec3(Vec3f::UP);
-        let drone_look = orientation.transform_vec3(Vec3f::new(0.0, 0.0, -1.0));
-        self.drone_left = self.drone_up.cross(drone_look);
-        self.velocity = *vel;
-
-        // The ESCs give the motors the pack's voltage times the throttle; the pack sags under
-        // the current it gave last step.
-        let throttle = throttle.clamp(-1.0, 1.0);
-        let vbat = self.pack_voltage() * throttle;
-        let mut charge = 0.0;
+        let esc = esc.map(|e| e.clamp(-1.0, 1.0));
+        let steps = (dt / self.max_time_step).ceil().clamp(1.0, 1000.0);
+        let h = dt / steps;
         let gravity_force = Vec3f::new(0.0, -self.gravity * self.drone_mass, 0.0);
+        let inertia = self.moment_of_inertia;
+        let mut charge = 0.0;
 
-        let max_iterations = (dt / self.max_time_step) as usize + 10;
-        let mut time_processed = 0.0;
+        for _ in 0..steps as usize {
+            self.drone_up = orientation.transform_vec3(Vec3f::UP);
+            let drone_look = orientation.transform_vec3(Vec3f::FORWARD);
+            self.drone_left = self.drone_up.cross(drone_look);
+            self.velocity = *vel;
+            let omega_world = orientation.transform_vec3(*omega);
+            // The ESCs give the motors the pack's voltage times their command; the pack sags
+            // under the current it gave last step.
+            let pack = self.pack_voltage();
+            let wash = self.update_prop_wash(h);
 
-        for _ in 0..max_iterations {
-            if dt - time_processed <= 1e-5 {
-                break;
-            }
-            let time_step = (dt - time_processed).min(self.max_time_step);
-            let speed = self.velocity.length();
-            let mut net_force = self.velocity.normalized_or_zero().mul(-speed * speed * self.drag_factor).add(gravity_force);
+            let speed = vel.length();
+            let mut force = vel.normalized_or_zero().mul(-speed * speed * self.drag_factor).add(gravity_force);
+            let mut torque = Vec3f::ZERO;
+            let mut current = 0.0;
 
             for motor in 0..4 {
-                let (thrust_force, _) = self.get_total_forces_on_prop(motor, self.motor_vel[motor]);
-                net_force = net_force.add(thrust_force);
+                let arm = orientation.transform_vec3(self.arms[motor]);
+                // The prop meets the air at the drone's speed plus its own from the drone turning.
+                let air = vel.add(omega_world.cross(arm));
+                let (thrust, drag_torque) = self.get_total_forces_on_prop(motor, self.motor_vel[motor], air);
+                let thrust = thrust.mul(wash[motor]);
+                force = force.add(thrust);
+                torque = torque.add(arm.cross(thrust));
 
-                let use_vbat = (if motor % 2 == 0 { -1.0 } else { 1.0 }) * vbat;
-                let next_motor_vel = self.advance_motor_vel(motor, self.motor_vel[motor], time_step, use_vbat, self.temp[motor]);
+                let use_vbat = spin(motor) * pack * esc[motor];
+                let resistance = self.get_hot_resistance(self.temp[motor]);
+                let motor_current = self.get_current(resistance, use_vbat, self.motor_vel[motor]);
+                // The motor turns its prop and the prop turns the frame back the other way:
+                // all the yaw a quad has (prop drag, and props speeding up or slowing down).
+                torque = torque.sub(self.drone_up.mul(self.get_torque(motor_current)));
+                // Each ESC draws its motor's current times its duty cycle.
+                current += (motor_current * use_vbat.signum()).max(0.0) * esc[motor].abs();
+
+                // The prop's drag now is the motor's first Runge-Kutta stage.
+                let k1 = (self.get_torque(motor_current) + drag_torque.dot(self.drone_up)) / self.inertia;
+                let next_motor_vel = self.advance_motor_vel_from(motor, self.motor_vel[motor], k1, h, use_vbat, self.temp[motor], air);
                 if self.heat_sim {
-                    self.internal_energy[motor] = self.get_next_internal_energy(motor, self.internal_energy[motor], self.temp[motor], use_vbat, self.motor_vel[motor], time_step);
+                    self.internal_energy[motor] = self.get_next_internal_energy(motor, self.internal_energy[motor], self.temp[motor], use_vbat, self.motor_vel[motor], h);
                     self.temp[motor] = self.get_next_temp(self.internal_energy[motor]);
                 }
-                self.motor_pos[motor] = Self::wrap_angle(self.motor_pos[motor] + self.motor_vel[motor] * time_step);
+                self.motor_pos[motor] = Self::wrap_angle(self.motor_pos[motor] + self.motor_vel[motor] * h);
                 self.motor_vel[motor] = next_motor_vel;
             }
-
-            // The pack's current: each ESC draws its motor's current times its duty cycle.
-            let current: f32 = (0..4)
-                .map(|m| {
-                    let use_vbat = (if m % 2 == 0 { -1.0 } else { 1.0 }) * vbat;
-                    let i = self.get_current(self.get_hot_resistance(self.temp[m]), use_vbat, self.motor_vel[m]);
-                    (i * use_vbat.signum()).max(0.0) * throttle.abs()
-                })
-                .sum();
             self.pack_current = current;
-            charge += current * time_step;
+            charge += current * h;
 
-            self.velocity = self.velocity.fma(time_step / self.drone_mass, net_force);
-            time_processed += time_step;
+            *vel = vel.fma(h / self.drone_mass, force);
+
+            // Euler's equations in the drone's own axes: I dw/dt = torque - w x (I w).
+            let body_torque = orientation.conjugate().transform_vec3(torque);
+            let momentum = Vec3f::new(omega.x * inertia.x, omega.y * inertia.y, omega.z * inertia.z);
+            let net = body_torque.sub(omega.cross(momentum));
+            let accel = Vec3f::new(net.x / inertia.x, net.y / inertia.y, net.z / inertia.z);
+            *omega = omega.fma(h, accel);
+            if !(omega.x.is_finite() && omega.y.is_finite() && omega.z.is_finite()) {
+                *omega = Vec3f::ZERO;
+            }
+            *orientation = orientation.integrate_body_rate(*omega, h);
         }
 
-        *vel = self.velocity;
+        self.velocity = *vel;
         if self.battery_sim {
             self.mah_used += charge * 1000.0 / 3600.0;
         }
@@ -304,6 +435,35 @@ impl AdvancedPhysicsCore {
         }
         self.battery_sim = battery;
         self.heat_sim = heat;
+    }
+
+    /// Prop wash: sinking at about the speed the props push air down, they fly into their
+    /// own turbulent wake (the vortex ring), lose thrust and each wobbles on its own. Returns
+    /// each motor's thrust factor.
+    fn update_prop_wash(&mut self, h: f32) -> [f32; 4] {
+        let sink = -self.velocity.dot(self.drone_up) / self.induced_velocity;
+        let smooth = |a: f32, b: f32, x: f32| {
+            let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
+        // Worst near the induced speed; falling much faster, the props windmill through clean air.
+        let depth = smooth(0.35, 1.0, sink) * (1.0 - smooth(1.6, 3.0, sink));
+        // Spinning props make the wake: worse with the throttle up.
+        let load = (self.rpm_fraction() * 2.0).min(1.0);
+        self.prop_wash = depth * load;
+
+        // Each motor's wobble: white noise through a ~10 Hz low-pass, scaled to about 0.5 RMS.
+        let a = 1.0 - (-h * 2.0 * PI * 10.0).exp();
+        let gain = 0.5 / (a / (2.0 - a) / 3.0).sqrt();
+        for n in self.wash_noise.iter_mut() {
+            self.rng ^= self.rng << 13;
+            self.rng ^= self.rng >> 17;
+            self.rng ^= self.rng << 5;
+            let white = self.rng as f32 / u32::MAX as f32 * 2.0 - 1.0;
+            *n += (white * gain - *n) * a;
+        }
+        let w = self.prop_wash;
+        self.wash_noise.map(|n| (1.0 - w * (0.15 + 0.3 * n.clamp(-1.5, 1.5))).max(0.0))
     }
 
     /// A full pack again.
@@ -380,7 +540,27 @@ impl AdvancedPhysicsCore {
         self.ref_resistance / average_res < 0.5
     }
 
+    /// The throttle that holds altitude, with the pack sagging under the current a hover draws.
     fn find_hover_throttle(&mut self) -> f32 {
+        let rested = self.pack_current;
+        self.pack_current = 0.0;
+        let mut hover = self.bisect_hover_throttle();
+        for _ in 0..3 {
+            self.reset_state(hover);
+            let vbat = self.pack_voltage() * hover;
+            self.pack_current = (0..4)
+                .map(|m| {
+                    let i = self.get_current(self.get_hot_resistance(self.temp[m]), spin(m) * vbat, self.motor_vel[m]);
+                    (i * spin(m)).max(0.0) * hover
+                })
+                .sum();
+            hover = self.bisect_hover_throttle();
+        }
+        self.pack_current = rested;
+        hover
+    }
+
+    fn bisect_hover_throttle(&mut self) -> f32 {
         let weight = self.drone_mass * self.gravity;
         let mut lo = 0.0;
         let mut hi = 1.0;
@@ -408,7 +588,7 @@ impl AdvancedPhysicsCore {
     fn total_thrust(&self) -> f32 {
         let mut thrust = 0.0;
         for motor in 0..4 {
-            let (force, _) = self.get_total_forces_on_prop(motor, self.motor_vel[motor]);
+            let (force, _) = self.get_total_forces_on_prop(motor, self.motor_vel[motor], self.velocity);
             thrust += force.dot(self.drone_up);
         }
         thrust
@@ -449,10 +629,9 @@ impl AdvancedPhysicsCore {
     }
 
     fn get_prop_drag_coefficient(aoa: f32) -> f32 {
-        let min: f32 = 0.4;
-        let max: f32 = 1.8;
-        let min_wrapped = min.powf(1.15);
-        let max_wrapped = max.powf(1.15);
+        // 0.4 and 1.8 to the power 1.15.
+        let min_wrapped: f32 = 0.348_633_4;
+        let max_wrapped: f32 = 1.965_908_9;
         let general_shape = -(aoa * 2.0).cos() + 1.0;
         let scaled_and_offset = general_shape / 2.0 * (max_wrapped - min_wrapped) + min_wrapped;
         scaled_and_offset.powf(0.8695652)
@@ -491,7 +670,9 @@ impl AdvancedPhysicsCore {
         motor_to_prop.normalized_or_zero().cross(wind_direction).mul(force_mag)
     }
 
-    fn get_total_forces_on_prop(&self, motor_number: usize, rotvel: f32) -> (Vec3f, Vec3f) {
+    /// The force on prop `motor_number` spinning at `rotvel` while it moves through the air at
+    /// `air` (world, m/s), and the drag torque on it.
+    fn get_total_forces_on_prop(&self, motor_number: usize, rotvel: f32, air: Vec3f) -> (Vec3f, Vec3f) {
         let mut net_force = Vec3f::ZERO;
         let mut net_drag_torque = Vec3f::ZERO;
         let world_velocity_free = Vec3f::ZERO;
@@ -513,7 +694,7 @@ impl AdvancedPhysicsCore {
                     section_width *= section_radius / self.motor_width;
                 }
 
-                let world_prop_velocity = Self::get_world_prop_velocity(self.drone_up, self.velocity, motor_to_prop, rotvel, section_radius);
+                let world_prop_velocity = Self::get_world_prop_velocity(self.drone_up, air, motor_to_prop, rotvel, section_radius);
                 let free_vel_rel_prop_planar = Self::get_free_vel_rel_prop_planar(world_prop_velocity, world_velocity_free, motor_to_prop);
                 let aoa = Self::get_aoa(motor_number, self.prop_pitch, section_radius, free_vel_rel_prop_planar, self.drone_up, motor_to_prop);
                 let drag_coeff = Self::get_prop_drag_coefficient(aoa);
@@ -606,20 +787,20 @@ impl AdvancedPhysicsCore {
         current / self.kv
     }
 
-    fn get_rot_accel(&self, motor: usize, rotvel: f32, vbat: f32, temp: f32) -> f32 {
+    fn get_rot_accel(&self, motor: usize, rotvel: f32, vbat: f32, temp: f32, air: Vec3f) -> f32 {
         let resistance = self.get_hot_resistance(temp);
         let current = self.get_current(resistance, vbat, rotvel);
         let torque = self.get_torque(current);
-        let (_, drag_torque_vec) = self.get_total_forces_on_prop(motor, rotvel);
+        let (_, drag_torque_vec) = self.get_total_forces_on_prop(motor, rotvel, air);
         let drag_torque = drag_torque_vec.dot(self.drone_up);
         (torque + drag_torque) / self.inertia
     }
 
-    fn advance_motor_vel(&self, motor: usize, rotvel: f32, time_step: f32, vbat: f32, temp: f32) -> f32 {
-        let k1 = self.get_rot_accel(motor, rotvel, vbat, temp);
-        let k2 = self.get_rot_accel(motor, rotvel + time_step / 2.0 * k1, vbat, temp);
-        let k3 = self.get_rot_accel(motor, rotvel + time_step / 2.0 * k2, vbat, temp);
-        let k4 = self.get_rot_accel(motor, rotvel + time_step * k3, vbat, temp);
+    #[allow(clippy::too_many_arguments)]
+    fn advance_motor_vel_from(&self, motor: usize, rotvel: f32, k1: f32, time_step: f32, vbat: f32, temp: f32, air: Vec3f) -> f32 {
+        let k2 = self.get_rot_accel(motor, rotvel + time_step / 2.0 * k1, vbat, temp, air);
+        let k3 = self.get_rot_accel(motor, rotvel + time_step / 2.0 * k2, vbat, temp, air);
+        let k4 = self.get_rot_accel(motor, rotvel + time_step * k3, vbat, temp, air);
 
         let mut next_vel = rotvel + time_step * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0;
         if next_vel.is_infinite() || next_vel.is_nan() {

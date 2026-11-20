@@ -193,6 +193,20 @@ impl Quat {
         }
     }
 
+    /// The inverse rotation (for a unit quaternion).
+    pub fn conjugate(self) -> Self {
+        Self { x: -self.x, y: -self.y, z: -self.z, w: self.w }
+    }
+
+    /// Turned by the body-frame angular velocity `omega` (rad/s) for `dt` seconds.
+    pub fn integrate_body_rate(self, omega: Vec3f, dt: f32) -> Self {
+        let speed = omega.length();
+        if speed * dt < 1e-9 {
+            return self;
+        }
+        self.mul(Self::from_axis_angle(omega, speed * dt)).normalize()
+    }
+
     /// Transforms a 3D vector by this quaternion rotation.
     pub fn transform_vec3(self, v: Vec3f) -> Vec3f {
         let qv = Vec3f::new(self.x, self.y, self.z);

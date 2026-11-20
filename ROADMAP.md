@@ -29,6 +29,9 @@
 - [ ] Load the world around the drone in single player: waits on a Horizon mod API to move where a player's
       chunks stream from ([horizon#19219](https://github.com/horizon-rust/horizon/issues/19219)); neither chunk
       tickets, chunk areas nor mixins can do it on the current build
+- [x] Simulated flight controller: rate PID per axis, quad-X motor mix, per-motor thrust and torque, the frame's moment of
+      inertia (new Wheelbase build setting), prop wash, hover throttle that allows for pack sag
+- [ ] PID tuning in the setup screen (P, I, D per axis, D setpoint weight, TPA), as Liftoff's
 - [ ] Sign releases with minisign
 
 ## Mobile: Starling (Android)

@@ -25,10 +25,13 @@ pub enum BuildParam {
     Efficiency,
     /// The battery pack's capacity, mAh.
     BatteryMah,
+    /// Motor-to-motor diagonal, metres: how far out the motors sit, which sets how hard the
+    /// drone is to turn (its moment of inertia) and the leverage its motors have.
+    Wheelbase,
 }
 
 impl BuildParam {
-    pub const ALL: [BuildParam; 12] = [
+    pub const ALL: [BuildParam; 13] = [
         BuildParam::DroneMass,
         BuildParam::BatteryCells,
         BuildParam::MotorKv,
@@ -41,6 +44,7 @@ impl BuildParam {
         BuildParam::CameraAngle,
         BuildParam::Efficiency,
         BuildParam::BatteryMah,
+        BuildParam::Wheelbase,
     ];
 
     pub fn key(self) -> &'static str {
@@ -57,6 +61,7 @@ impl BuildParam {
             BuildParam::CameraAngle => "camera_angle",
             BuildParam::Efficiency => "efficiency",
             BuildParam::BatteryMah => "battery_mah",
+            BuildParam::Wheelbase => "wheelbase",
         }
     }
 
@@ -74,6 +79,7 @@ impl BuildParam {
             BuildParam::CameraAngle => 10.0,
             BuildParam::Efficiency => 0.42,
             BuildParam::BatteryMah => 1400.0,
+            BuildParam::Wheelbase => 0.22,
         }
     }
 
@@ -91,6 +97,7 @@ impl BuildParam {
             BuildParam::CameraAngle => 0.0,
             BuildParam::Efficiency => 0.1,
             BuildParam::BatteryMah => 100.0,
+            BuildParam::Wheelbase => 0.04,
         }
     }
 
@@ -108,6 +115,7 @@ impl BuildParam {
             BuildParam::CameraAngle => 70.0,
             BuildParam::Efficiency => 1.5,
             BuildParam::BatteryMah => 10000.0,
+            BuildParam::Wheelbase => 0.8,
         }
     }
 
@@ -125,6 +133,7 @@ impl BuildParam {
             BuildParam::CameraAngle => 1.0,
             BuildParam::Efficiency => 0.01,
             BuildParam::BatteryMah => 50.0,
+            BuildParam::Wheelbase => 0.001,
         }
     }
 
@@ -139,13 +148,13 @@ impl BuildParam {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DroneBuildConfig {
-    pub values: [f32; 12],
+    pub values: [f32; 13],
     pub version: u32,
 }
 
 impl Default for DroneBuildConfig {
     fn default() -> Self {
-        let mut vals = [0.0; 12];
+        let mut vals = [0.0; 13];
         for (i, p) in BuildParam::ALL.iter().enumerate() {
             vals[i] = p.default_value();
         }

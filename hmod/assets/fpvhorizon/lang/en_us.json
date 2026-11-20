@@ -45,6 +45,7 @@
   "fpvhorizon.setting.build_camera_angle": "Build: Camera Angle (degrees)",
   "fpvhorizon.setting.build_efficiency": "Build: Prop Efficiency",
   "fpvhorizon.setting.build_battery_mah": "Build: Battery (mAh)",
+  "fpvhorizon.setting.build_wheelbase": "Build: Wheelbase (m)",
   "fpvhorizon.preset.nazgul5": "iFlight Nazgul5 V3 (5\" freestyle 6S)",
   "fpvhorizon.preset.xl5": "iFlight XL5 V5 (5\" race 4S)",
   "fpvhorizon.preset.cinelog35": "GEPRC CineLog35 V2 (3.5\" cinewhoop 6S)",

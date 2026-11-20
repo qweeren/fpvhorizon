@@ -317,7 +317,8 @@ fn sweep(host: &dyn ClientHost, pos: [f64; 3], movement: [f64; 3], half: f64, he
 fn fit(drone: &mut drone::DroneState, preset: usize, build: drone::DroneBuildConfig) {
     let p = &drone::PRESETS[preset];
     drone.build = build;
-    drone.half_width = f64::from(p.wheelbase / 2.0 / std::f32::consts::SQRT_2 + p.prop_radius);
+    let wheelbase = build.get(drone::BuildParam::Wheelbase);
+    drone.half_width = f64::from(wheelbase / 2.0 / std::f32::consts::SQRT_2 + build.get(drone::BuildParam::PropRadius));
     drone.height = f64::from(0.03 + p.prop_radius * 0.8);
     drone.crash_speed = match p.frame {
         drone::Frame::X => 9.0,
@@ -631,8 +632,11 @@ impl Hooks for Mod {
             shared.roll = 0.0;
             return;
         };
-        if playing && !setup::is_open(host) && !host.is_paused() {
-            drone.frame(dt, &input);
+        if !host.is_paused() {
+            // The flight controller keeps flying behind chat and the setup screen, on centred
+            // sticks and the throttle where it was.
+            let flying = playing && !setup::is_open(host);
+            drone.frame(dt, &if flying { input } else { drone::FrameInput::default() });
         }
         let partial = event.partial;
         let at = drone.position_at(partial);

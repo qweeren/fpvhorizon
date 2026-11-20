@@ -9,6 +9,9 @@ FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic q
   - Blade element theory with multi-section propeller lift and drag curves.
   - Electric motor dynamics with back-EMF, winding resistance, and thermal modelling (Joule heating and convective cooling).
   - Battery voltage sag under throttle.
+  - A simulated flight controller: a rate PID per axis (with TPA, D setpoint weight, I-term relax and air mode) drives
+    each motor through a quad-X mix, so the drone turns by its motors' thrust and prop torque against its own inertia,
+    with real overshoot, motor lag and prop wash.
   - Block collisions with glancing angles and elastic bouncing.
 - **Real drone presets**: 5" freestyle and race quads, a 3.5" cinewhoop, a 75mm whoop and a 7.5" long-range build, or your own custom build.
 - **Betaflight rates**: RC Rate, Super Rate and Expo for roll, pitch and yaw, configurable deadzone.
