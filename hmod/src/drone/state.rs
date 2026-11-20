@@ -3,7 +3,7 @@
 
 use super::build::{BuildParam, DroneBuildConfig};
 use super::collision;
-use super::controller::{ControlAxis, ControllerConfig};
+use super::controller::{ControlAxis, ControllerConfig, FlightMode};
 use super::math::{Quat, Vec3f};
 use super::physics::AdvancedPhysicsCore;
 use super::physics_settings::PhysicsConfig;
@@ -19,6 +19,9 @@ pub const HUD_MOUSE_SMOOTHING: f32 = 0.35;
 pub const ARMED_IDLE: f32 = 0.04;
 /// The throttle at or under which the drone may arm.
 pub const ARM_THROTTLE: f32 = 0.05;
+/// Horizon mode stops levelling as the drone turns past this tilt, degrees, so flips and
+/// rolls go through (Betaflight's `horizon_limit_degrees`).
+pub const HORIZON_LEVEL_TILT_LIMIT: f32 = 135.0;
 
 #[derive(Debug, Clone)]
 pub struct DroneState {
@@ -102,8 +105,16 @@ impl DroneState {
         self.build.get(BuildParam::CameraAngle).to_radians()
     }
 
+    pub fn flight_mode(&self) -> FlightMode {
+        self.controller_config.flight_mode
+    }
+
+    fn is_3d(&self) -> bool {
+        self.controller_config.flight_mode.is_3d()
+    }
+
     pub fn throttle_to_hud(&self, throt: f32) -> f32 {
-        if self.controller_config.mode_3d {
+        if self.is_3d() {
             throt
         } else {
             throt * 2.0 - 1.0
@@ -157,7 +168,7 @@ impl DroneState {
 
     /// Arms if the throttle is at idle and it isn't crashed. Returns whether it is armed.
     pub fn arm(&mut self) -> bool {
-        let idle = if self.controller_config.mode_3d { self.throttle.abs() } else { self.throttle };
+        let idle = if self.is_3d() { self.throttle.abs() } else { self.throttle };
         if self.active && !self.crashed && idle <= ARM_THROTTLE {
             self.armed = true;
         }
@@ -205,20 +216,26 @@ impl DroneState {
         let mut pitch_deg = input.mouse_dy * PITCH_PER_MOUSE_DEG;
         let mut roll_deg = input.mouse_dx * ROLL_PER_MOUSE_DEG;
         let mut yaw_deg = input.key_yaw * YAW_RATE_DEG_PER_SEC * dt;
+        // The roll and pitch "sticks" the self-levelling modes read: the pad's, or the mouse's
+        // smoothed speed (moving the mouse tilts, letting it rest levels).
+        let mut level_sticks = (self.hud_mouse_roll, self.hud_mouse_pitch);
 
-        let min_throttle = if self.controller_config.mode_3d { -1.0 } else { 0.0 };
+        let mode = self.flight_mode();
+        let min_throttle = if mode.is_3d() { -1.0 } else { 0.0 };
         if let Some(sticks) = input.sticks {
-            // Acro mode: the sticks command rotation rates (Betaflight rates), the throttle stick
-            // sets the throttle directly.
+            // The sticks command rotation rates (Betaflight rates), the throttle stick sets the
+            // throttle directly.
             let cfg = &self.controller_config;
-            roll_deg += cfg.rate_deg_per_sec(ControlAxis::Roll, cfg.shape_stick(sticks.roll)) * dt;
-            pitch_deg += cfg.rate_deg_per_sec(ControlAxis::Pitch, cfg.shape_stick(sticks.pitch)) * dt;
+            let (roll, pitch) = (cfg.shape_stick(sticks.roll), cfg.shape_stick(sticks.pitch));
+            roll_deg += cfg.rate_deg_per_sec(ControlAxis::Roll, roll) * dt;
+            pitch_deg += cfg.rate_deg_per_sec(ControlAxis::Pitch, pitch) * dt;
             yaw_deg += cfg.rate_deg_per_sec(ControlAxis::Yaw, cfg.shape_stick(sticks.yaw)) * dt;
+            level_sticks = (roll, pitch);
             hud_roll += sticks.roll;
             hud_pitch += sticks.pitch;
             hud_yaw += sticks.yaw;
             let stick = sticks.throttle.clamp(-1.0, 1.0);
-            self.throttle = if cfg.mode_3d {
+            self.throttle = if mode.is_3d() {
                 stick
             } else if cfg.throttle_centre_hover {
                 // A gamepad stick springs back to centre: make centre hover, so letting go
@@ -236,6 +253,27 @@ impl DroneState {
             self.throttle = 0.0;
         }
 
+        match mode {
+            FlightMode::Acro | FlightMode::Acro3d => {}
+            FlightMode::Angle => {
+                // The sticks set the tilt, not a rate: their roll and pitch turn is replaced.
+                let (roll, pitch) = self.level_step(level_sticks, dt);
+                roll_deg = roll;
+                pitch_deg = pitch;
+            }
+            FlightMode::Horizon => {
+                // Acro's rates plus levelling that fades out as the sticks go to full, and past
+                // a steep tilt, so a full stick flips.
+                let deflection = level_sticks.0.abs().max(level_sticks.1.abs()).min(1.0);
+                let tilt = self.tilt_deg();
+                let past = ((tilt - HORIZON_LEVEL_TILT_LIMIT) / (180.0 - HORIZON_LEVEL_TILT_LIMIT)).clamp(0.0, 1.0);
+                let weight = (1.0 - deflection) * (1.0 - past);
+                let (roll, pitch) = self.level_step(level_sticks, dt);
+                roll_deg += roll * weight;
+                pitch_deg += pitch * weight;
+            }
+        }
+
         if self.armed {
             self.orientation = self.orientation
                 .rotate_x(-pitch_deg.to_radians())
@@ -248,6 +286,32 @@ impl DroneState {
         self.hud_roll = hud_roll.clamp(-1.0, 1.0);
         self.hud_pitch = hud_pitch.clamp(-1.0, 1.0);
         self.hud_throttle = self.throttle_to_hud(self.throttle).clamp(-1.0, 1.0);
+    }
+
+    /// The drone's roll and pitch, degrees, signed as the sticks turn it: right roll and nose
+    /// down are positive.
+    pub fn attitude_deg(&self) -> (f32, f32) {
+        let [_, pitch, roll] = self.orientation.to_euler_angles_yxz();
+        (-roll.to_degrees(), -pitch.to_degrees())
+    }
+
+    /// How far the drone's top is tipped from straight up, degrees (0 level, 180 upside down).
+    pub fn tilt_deg(&self) -> f32 {
+        let up = self.orientation.transform_vec3(Vec3f::UP);
+        up.y.clamp(-1.0, 1.0).acos().to_degrees()
+    }
+
+    /// The self-levelling turn this frame, degrees of (roll, pitch): toward the tilt the sticks
+    /// ask for (`sticks` × the angle limit). Betaflight turns the angle error into a rate,
+    /// error × strength / 10 per second; this takes that as an exponential approach, so a
+    /// long frame or a high strength can't overshoot.
+    fn level_step(&self, sticks: (f32, f32), dt: f32) -> (f32, f32) {
+        let cfg = &self.controller_config;
+        let (roll, pitch) = self.attitude_deg();
+        let target = (sticks.0.clamp(-1.0, 1.0) * cfg.angle_limit, sticks.1.clamp(-1.0, 1.0) * cfg.angle_limit);
+        let k = 1.0 - (-cfg.level_strength / 10.0 * dt).exp();
+        let wrap = |a: f32| (a + 540.0).rem_euclid(360.0) - 180.0;
+        (wrap(target.0 - roll) * k, wrap(target.1 - pitch) * k)
     }
 
     /// One physics step of `dt` seconds: motors and aerodynamics, then the move. `mover` gets the
@@ -448,6 +512,106 @@ mod tests {
         let centre = at(&mut drone, 0.0);
         let out = ARMED_IDLE + (1.0 - ARMED_IDLE) * centre;
         assert!((out - drone.physics.hover()).abs() < 1e-5, "centre should hover, gives {out}");
+    }
+
+    fn pad(roll: f32, pitch: f32) -> FrameInput {
+        FrameInput { sticks: Some(Sticks { roll, pitch, ..Default::default() }), ..Default::default() }
+    }
+
+    fn flying(mode: FlightMode) -> DroneState {
+        let mut drone = DroneState::new();
+        drone.spawn([0.0; 3], 0.0);
+        drone.controller_config.flight_mode = mode;
+        drone.throttle = 0.0;
+        assert!(drone.arm());
+        drone
+    }
+
+    #[test]
+    fn the_mode_switch_steps_through_every_mode_and_back() {
+        let mut m = FlightMode::Acro;
+        let mut seen = vec![m];
+        for _ in 0..FlightMode::ALL.len() {
+            m = m.next();
+            seen.push(m);
+        }
+        assert_eq!(seen, [FlightMode::Acro, FlightMode::Angle, FlightMode::Horizon, FlightMode::Acro3d, FlightMode::Acro]);
+    }
+
+    #[test]
+    fn stick_signs_match_the_attitude() {
+        // Right roll and forward pitch, in acro, read back as positive roll and pitch.
+        let mut drone = flying(FlightMode::Acro);
+        drone.frame(0.05, &pad(0.5, 0.0));
+        assert!(drone.attitude_deg().0 > 1.0, "{:?}", drone.attitude_deg());
+        let mut drone = flying(FlightMode::Acro);
+        drone.frame(0.05, &pad(0.0, 0.5));
+        assert!(drone.attitude_deg().1 > 1.0, "{:?}", drone.attitude_deg());
+    }
+
+    #[test]
+    fn angle_mode_holds_the_stick_angle_and_levels_on_release() {
+        let mut drone = flying(FlightMode::Angle);
+        let limit = drone.controller_config.angle_limit;
+        for _ in 0..120 {
+            drone.frame(1.0 / 60.0, &pad(1.0, -0.5));
+        }
+        let (roll, pitch) = drone.attitude_deg();
+        assert!((roll - limit).abs() < 3.0, "full right roll tilts to the limit, got {roll}");
+        assert!((pitch + limit / 2.0).abs() < 3.0, "half back pitch tilts half way, got {pitch}");
+        for _ in 0..120 {
+            drone.frame(1.0 / 60.0, &pad(0.0, 0.0));
+        }
+        assert!(drone.tilt_deg() < 2.0, "centred sticks level it, tilt {}", drone.tilt_deg());
+    }
+
+    #[test]
+    fn angle_mode_rights_an_upside_down_drone() {
+        let mut drone = flying(FlightMode::Angle);
+        drone.orientation = drone.orientation.rotate_z(PI * 0.9);
+        for _ in 0..180 {
+            drone.frame(1.0 / 60.0, &pad(0.0, 0.0));
+        }
+        assert!(drone.tilt_deg() < 2.0, "tilt {}", drone.tilt_deg());
+    }
+
+    #[test]
+    fn acro_holds_its_attitude_with_centred_sticks() {
+        let mut drone = flying(FlightMode::Acro);
+        drone.orientation = drone.orientation.rotate_z(0.5);
+        let before = drone.tilt_deg();
+        for _ in 0..60 {
+            drone.frame(1.0 / 60.0, &pad(0.0, 0.0));
+        }
+        assert!((drone.tilt_deg() - before).abs() < 1e-3);
+    }
+
+    #[test]
+    fn horizon_levels_near_centre_and_flips_at_full_stick() {
+        let mut drone = flying(FlightMode::Horizon);
+        drone.orientation = drone.orientation.rotate_z(0.6);
+        for _ in 0..120 {
+            drone.frame(1.0 / 60.0, &pad(0.0, 0.0));
+        }
+        assert!(drone.tilt_deg() < 2.0, "centred: levels, tilt {}", drone.tilt_deg());
+        // Full stick for long enough to go right over: horizon lets it roll through.
+        let mut most = 0.0f32;
+        for _ in 0..60 {
+            drone.frame(1.0 / 60.0, &pad(1.0, 0.0));
+            most = most.max(drone.tilt_deg());
+        }
+        assert!(most > 170.0, "full stick rolls past upside down, most tilt {most}");
+    }
+
+    #[test]
+    fn three_d_mode_reverses_the_throttle() {
+        let mut drone = flying(FlightMode::Acro3d);
+        let input = FrameInput { sticks: Some(Sticks { throttle: -0.8, ..Default::default() }), ..Default::default() };
+        drone.frame(0.016, &input);
+        assert!(drone.throttle < -0.7, "the low stick thrusts backwards, {}", drone.throttle);
+        let mut drone = flying(FlightMode::Angle);
+        drone.frame(0.016, &input);
+        assert!(drone.throttle >= 0.0, "other modes never reverse, {}", drone.throttle);
     }
 
     #[test]

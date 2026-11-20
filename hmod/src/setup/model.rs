@@ -295,7 +295,15 @@ static SETTINGS: LazyLock<Vec<Setting>> = LazyLock::new(|| {
         range("mouse_sensitivity", "Mouse sensitivity", "How far the mouse turns the drone when you fly without a gamepad.", (0.1, 5.0, 0.05, 1.0), Unit::Times),
         range("gravity", "Gravity", "How hard the world pulls the drone down. Earth: 9.8.", (4.0, 30.0, 0.1, 9.8), Unit::Suffix(1, " m/s²")),
         toggle("throttle_centre_hover", "Stick centre is hover", "A gamepad's throttle stick springs back to centre: let centre hold a hover.", true),
-        toggle("mode_3d", "3D mode", "Reversible motors: the lower half of the throttle flies upside down.", false),
+        choice(
+            "flight_mode",
+            "Flight mode",
+            "Acro holds any angle, Angle levels itself, Horizon levels until full stick, 3D reverses the motors. L1 or M switches.",
+            c::FlightMode::ALL.iter().map(|m| (format!("fpvhorizon.flight_mode.{}", m.key()), m.name().to_string())).collect(),
+            0,
+        ),
+        range("angle_limit", "Angle limit", "Angle and Horizon: how far full stick tilts the drone.", (f(c::ANGLE_LIMIT_MIN), f(c::ANGLE_LIMIT_MAX), 1.0, f(c::DEFAULT_ANGLE_LIMIT)), Unit::Suffix(0, "°")),
+        range("level_strength", "Level strength", "Angle and Horizon: how hard the drone pulls itself level.", (f(c::LEVEL_STRENGTH_MIN), f(c::LEVEL_STRENGTH_MAX), 1.0, f(c::DEFAULT_LEVEL_STRENGTH)), Unit::Num(0)),
         range("deadzone", "Stick deadzone", "Stick movement ignored around centre, so a worn stick doesn't drift.", (0.0, 0.3, 0.01, f(c::DEFAULT_DEADZONE)), Unit::Percent),
         range("range", "Video range", "How far the video link reaches before the picture is lost and the drone disarms.", (32.0, 512.0, 8.0, 160.0), Unit::Suffix(0, " m")),
         range("motor_volume", "Motors", "How loud the motors whine.", (0.0, 1.0, 0.05, 0.6), Unit::Percent),
@@ -463,7 +471,11 @@ pub fn rows(page: Page, custom: bool) -> Vec<Row> {
             Row::Hero(Hero::Sticks),
             s("deadzone"),
             s("throttle_centre_hover"),
-            s("mode_3d"),
+            Row::Header("FLIGHT MODE"),
+            s("flight_mode"),
+            s("angle_limit"),
+            s("level_strength"),
+            Row::Header("MOUSE"),
             s("mouse_sensitivity"),
             Row::Header("KEYS"),
             Row::Keys,
@@ -626,7 +638,9 @@ mod tests {
         assert_eq!(setting("build_battery_cells").format(Value::Range(6.0)), "6S");
         assert_eq!(setting("deadzone").format(Value::Range(0.05)), "5%");
         assert_eq!(setting("fisheye").format(Value::Choice(2)), "Medium");
-        assert_eq!(setting("mode_3d").format(Value::Toggle(true)), "On");
+        assert_eq!(setting("show_sticks").format(Value::Toggle(true)), "On");
+        assert_eq!(setting("flight_mode").format(Value::Choice(1)), "Angle (level)");
+        assert_eq!(setting("angle_limit").format(Value::Range(55.0)), "55°");
     }
 
     #[test]

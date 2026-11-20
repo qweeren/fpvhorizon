@@ -14,7 +14,7 @@ pub mod state;
 
 pub use build::{BuildParam, DroneBuildConfig};
 pub use collision::CollisionResult;
-pub use controller::{ControlAxis, ControllerConfig, VirtualStick};
+pub use controller::{ControlAxis, ControllerConfig, FlightMode, VirtualStick};
 pub use hud::{GimbalHud, HudPainter};
 pub use math::{Quat, Vec3f};
 pub use physics::AdvancedPhysicsCore;

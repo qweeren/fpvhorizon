@@ -24,6 +24,7 @@
       "L1+R1" in `hmod/src/osd.rs`), and show only the keyboard or the gamepad hint depending on which is in use
 - [x] Fisheye lens on the FPV camera (Off / Light / Medium / Strong in the settings)
 - [x] Setup screen (J, a pad's Select, or the pause menu): every setting with live previews, in the OSD's style
+- [x] Flight modes: Acro, Angle, Horizon and 3D, switched with L1 (or M) as in Liftoff; shown on the OSD
 - [ ] Sign releases with minisign
 
 ## Mobile: Starling (Android)
