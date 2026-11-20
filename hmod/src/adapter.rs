@@ -3,7 +3,8 @@
 // where the player stands and looks. The drone itself lives in the mod's crate.
 
 use crate::game::{Game, Screen};
-use horizon_client::gamepad::{Button, GlyphStyle};
+use horizon_client::gamepad::{Button, GlyphStyle, MenuJob};
+use horizon_client::pad_glyph::Glyph;
 
 /// The pad buttons the drone uses, as bits for edge detection.
 const BUTTONS: [(Button, u32); 6] = [
@@ -48,9 +49,15 @@ pub fn tick(game: &mut Game<'_>) {
     shared.pad_pressed |= held & !shared.pad_held;
     shared.pad_held = held;
 
-    // The glyphs the player sees on Horizon's own pad hints, for the OSD's.
-    shared.pad_family = match game.ui.options.pad_glyphs.family() {
+    // The glyphs the player sees on Horizon's own pad hints, for the OSD's. Letter mode isn't
+    // exposed on its own, so ask Horizon which button plays North: on a Nintendo pad going by
+    // its letters that is the Y on the left, not the X on top.
+    let glyphs = game.ui.options.pad_glyphs;
+    shared.pad_family = match glyphs.family() {
         GlyphStyle::PlayStation => mod_fpvhorizon::PadFamily::PlayStation,
+        GlyphStyle::Nintendo if Glyph::menu(MenuJob::Extra, glyphs).label() == "Y" => {
+            mod_fpvhorizon::PadFamily::NintendoLetters
+        }
         GlyphStyle::Nintendo => mod_fpvhorizon::PadFamily::Nintendo,
         GlyphStyle::Xbox | GlyphStyle::Auto => mod_fpvhorizon::PadFamily::Xbox,
     };

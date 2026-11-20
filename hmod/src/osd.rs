@@ -66,12 +66,25 @@ pub enum PadButton {
 }
 
 impl PadButton {
+    /// The family whose art shows this part, and the button on the pad that plays it. A Nintendo
+    /// pad going by its letters is read with North and West swapped (Horizon's
+    /// `Button::by_letter`), so the hint shows the button that really does the job.
+    fn on_pad(self, family: PadFamily) -> (PadFamily, PadButton) {
+        match (family, self) {
+            (PadFamily::NintendoLetters, PadButton::North) => (PadFamily::Nintendo, PadButton::West),
+            (PadFamily::NintendoLetters, PadButton::West) => (PadFamily::Nintendo, PadButton::North),
+            (PadFamily::NintendoLetters, button) => (PadFamily::Nintendo, button),
+            other => other,
+        }
+    }
+
     /// Horizon's art for the button in `family` (`horizon:gui/controller/`, which a resource pack
     /// can replace), and its texture's width: 32 by 32, a shoulder button 48 by 32.
     fn sprite(self, family: PadFamily) -> (&'static str, f32) {
         use PadButton as B;
         use PadFamily as F;
-        let name = match (family, self) {
+        let (family, button) = self.on_pad(family);
+        let name = match (family, button) {
             (F::Xbox, B::North) => "xb_y",
             (F::Xbox, B::West) => "xb_x",
             (F::Xbox, B::L1) => "xb_lb",
@@ -93,15 +106,16 @@ impl PadButton {
             (F::Nintendo, B::Up) => "nx_up",
             (F::Nintendo, B::Left) => "nx_left",
             (F::Nintendo, B::Right) => "nx_right",
+            (F::NintendoLetters, _) => unreachable!("on_pad maps letters to Nintendo"),
         };
-        let wide = matches!(self, B::L1 | B::R1);
+        let wide = matches!(button, B::L1 | B::R1);
         (name, if wide { 48.0 } else { 32.0 })
     }
 
     /// The button's print, where its art is missing.
     fn label(self, family: PadFamily) -> &'static str {
         use PadButton as B;
-        match (family, self) {
+        match self.on_pad(family) {
             (PadFamily::Xbox, B::North) => "Y",
             (PadFamily::Xbox, B::West) => "X",
             (PadFamily::Xbox, B::L1) => "LB",
@@ -117,6 +131,7 @@ impl PadButton {
             (_, B::Up) => "Up",
             (_, B::Left) => "Left",
             (_, B::Right) => "Right",
+            (PadFamily::NintendoLetters, _) => unreachable!("on_pad maps letters to Nintendo"),
         }
     }
 }
@@ -127,6 +142,8 @@ pub enum PadFamily {
     Xbox,
     PlayStation,
     Nintendo,
+    /// Nintendo art on a pad going by its letters (Horizon's "Nintendo letters" setting).
+    NintendoLetters,
 }
 
 /// A piece of a hint line: words, or a pad button drawn as Horizon draws it.
