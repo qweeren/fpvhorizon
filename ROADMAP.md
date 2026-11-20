@@ -37,10 +37,14 @@
 
 ## Web: WebAssembly
 
-- [ ] Check whether Horizon has (or plans) a WebAssembly build, and whether native mods can run in it: the mod is a
-      Rust crate, so it needs to compile for `wasm32` and not depend on desktop-only APIs (threads, files, sockets)
-- [ ] If it can, check that the drone simulation (`hmod/src/drone/`, already game-agnostic) and the mixins work there,
-      and what input the web build offers (keyboard, browser Gamepad API)
+Horizon plans to support WebAssembly mods that use only the mod API (no mixins, no native-only code). Check whether
+FPV Horizon can ship as one:
+
+- [ ] List what the mod still gets from mixins or the adapter instead of the mod API (camera, input, player movement,
+      HUD) and which of it the API covers, or is planned to cover, for wasm mods
+- [ ] Check that the crate compiles for `wasm32` with only the mod API; the drone simulation (`hmod/src/drone/`) is
+      already game-agnostic, so it should carry over as it is
+- [ ] Watch Horizon's wasm mod support and decide whether to ship a wasm build beside the native one, or replace it
 
 ## Mobile: Starling (Android)
 
