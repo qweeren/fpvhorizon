@@ -314,7 +314,6 @@ static SETTINGS: LazyLock<Vec<Setting>> = LazyLock::new(|| {
         toggle("mode_3d", "3D mode", "Reversible motors: the lower half of the throttle flies upside down.", false),
         range("deadzone", "Stick deadzone", "Stick movement ignored around centre, so a worn stick doesn't drift.", (0.0, 0.3, 0.01, f(c::DEFAULT_DEADZONE)), Unit::Percent),
         range("range", "Video range", "How far the video link reaches before the picture is lost and the drone disarms. All the way right: unlimited.", (32.0, RANGE_UNLIMITED, 8.0, 160.0), Unit::Range),
-        toggle("load_chunks", "Load the world around the drone", "Single player: the world loads and draws around the drone instead of you, so it can fly anywhere.", true),
         toggle("battery_sim", "Battery drain and sag", "The pack drains as you fly and its voltage sags under load. Off: a full pack that never runs down.", true),
         toggle("heat_sim", "Motor heat", "Motors heat up under load and lose power when hot. Off: they stay cool.", true),
         range("motor_volume", "Motors", "How loud the motors whine.", (0.0, 1.0, 0.05, 0.6), Unit::Percent),
@@ -487,7 +486,7 @@ pub fn rows(page: Page, custom: bool) -> Vec<Row> {
             Row::Header("KEYS"),
             Row::Keys,
         ],
-        Page::Link => vec![Row::Hero(Hero::Link), s("range"), s("load_chunks")],
+        Page::Link => vec![Row::Hero(Hero::Link), s("range")],
         Page::Sound => vec![s("motor_volume"), s("wind_volume")],
         Page::Physics => {
             let mut rows = vec![

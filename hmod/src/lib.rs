@@ -144,11 +144,6 @@ pub struct Shared {
     /// Whose button art the OSD's pad hints use, as the tick module last read it.
     pub pad_family: PadFamily,
     pub player: Option<PlayerView>,
-    /// The world is this window's own (single player, not open to LAN, not a server's).
-    pub local_world: bool,
-    /// Where the world loads and draws around while it follows the drone, block x and z; None
-    /// keeps it on the player (`stream_x` and `stream_z` mixins).
-    pub stream_centre: Option<[i32; 2]>,
     /// In a world, unpaused, with no screen open.
     pub playing: bool,
     view: View,
@@ -189,8 +184,6 @@ pub static SHARED: Mutex<Shared> = Mutex::new(Shared {
     pad_pressed: 0,
     pad_family: PadFamily::Xbox,
     player: None,
-    local_world: false,
-    stream_centre: None,
     playing: false,
     view: View::Fpv,
     showcase: None,
@@ -240,17 +233,6 @@ pub fn take_turn(xo: f64, yo: f64) -> bool {
         shared.mouse[1] += (yo * 0.15) as f32 * k;
     }
     true
-}
-
-/// The `stream_x` and `stream_z` mixins: the block coordinate on `axis` (0 x, 1 z) the world
-/// loads, generates and draws around, `value` being the player's. While a drone flies in a
-/// single-player world with its camera on it, that is the drone's, so it can fly anywhere.
-pub fn stream_block(axis: usize, value: i32) -> i32 {
-    // The world's update never runs inside the mod's hooks, but a held lock must never stall it.
-    match SHARED.try_lock() {
-        Ok(shared) => shared.stream_centre.map_or(value, |c| c[axis]),
-        Err(_) => value,
-    }
 }
 
 /// The `roll` mixin: the camera's roll for this frame, radians (0 off the drone's camera).
@@ -587,15 +569,6 @@ impl Hooks for Mod {
             settings::f(host, "motor_volume").unwrap_or(0.6),
             settings::f(host, "wind_volume").unwrap_or(0.8),
         );
-        // In a single-player world the world loads around the drone while its camera is on it
-        // (not from the pilot's eyes, which need the world round the pilot).
-        let follow = host.setting_bool("load_chunks").unwrap_or(true) && shared.local_world && view_now(shared) != View::Los;
-        shared.stream_centre = shared
-            .drone
-            .as_ref()
-            .filter(|d| d.active && follow)
-            .map(|d| [d.position[0].floor() as i32, d.position[2].floor() as i32]);
-
         let state = shared.drone.as_ref().filter(|d| d.active && !paused);
         shared.audio.update(host, state, far, volumes);
         if let Some(mode) = hud {
