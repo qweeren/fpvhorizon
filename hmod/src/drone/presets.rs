@@ -184,18 +184,24 @@ pub fn by_id(id: &str) -> &'static Preset {
     PRESETS.iter().find(|p| p.id == id).unwrap_or(&PRESETS[0])
 }
 
+/// How `build` flies in standard air: its thrust-to-weight at full throttle, and the throttle
+/// that holds it in a hover (0..1).
+pub fn performance(build: &DroneBuildConfig) -> (f32, f32) {
+    use super::physics::{AdvancedPhysicsCore, GRAVITY};
+    use super::physics_settings::PhysicsConfig;
+    let p = PhysicsConfig::default();
+    let mut core = AdvancedPhysicsCore::default();
+    let hover = core.get_hover_throttle(build, &p);
+    core.reset(1.0, build, &p);
+    (core.static_thrust() / (build.get(BuildParam::DroneMass) * GRAVITY), hover)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::physics::{AdvancedPhysicsCore, GRAVITY};
-    use super::super::physics_settings::PhysicsConfig;
 
     fn twr_and_hover(build: &DroneBuildConfig) -> (f32, f32) {
-        let p = PhysicsConfig::default();
-        let mut core = AdvancedPhysicsCore::default();
-        let hover = core.get_hover_throttle(build, &p);
-        core.reset(1.0, build, &p);
-        (core.static_thrust() / (build.get(BuildParam::DroneMass) * GRAVITY), hover)
+        performance(build)
     }
 
     #[test]

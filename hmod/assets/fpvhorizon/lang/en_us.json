@@ -49,5 +49,6 @@
   "fpvhorizon.fisheye.off": "Off",
   "fpvhorizon.fisheye.light": "Light",
   "fpvhorizon.fisheye.medium": "Medium",
-  "fpvhorizon.fisheye.strong": "Strong"
+  "fpvhorizon.fisheye.strong": "Strong",
+  "fpvhorizon.key.setup": "Open FPV Horizon Setup"
 }

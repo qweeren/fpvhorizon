@@ -6,14 +6,18 @@ use crate::game::{Game, Screen};
 use horizon_client::gamepad::{Button, GlyphStyle, MenuJob};
 use horizon_client::pad_glyph::Glyph;
 
-/// The pad buttons the drone uses, as bits for edge detection.
-const BUTTONS: [(Button, u32); 6] = [
+/// The pad buttons the drone and the setup screen use, as bits for edge detection.
+const BUTTONS: [(Button, u32); 10] = [
     (Button::LeftBumper, mod_fpvhorizon::PAD_L1),
     (Button::RightBumper, mod_fpvhorizon::PAD_R1),
     (Button::North, mod_fpvhorizon::PAD_ARM),
     (Button::West, mod_fpvhorizon::PAD_RESET),
     (Button::DPadUp, mod_fpvhorizon::PAD_VIEW),
     (Button::DPadLeft, mod_fpvhorizon::PAD_PREV),
+    (Button::DPadRight, mod_fpvhorizon::PAD_NEXT),
+    (Button::DPadDown, mod_fpvhorizon::PAD_DOWN),
+    (Button::South, mod_fpvhorizon::PAD_SOUTH),
+    (Button::Select, mod_fpvhorizon::PAD_SELECT),
 ];
 
 pub fn tick(game: &mut Game<'_>) {
@@ -39,13 +43,10 @@ pub fn tick(game: &mut Game<'_>) {
         yaw: pad.left[0],
         throttle: pad.left[1],
     });
-    let mut held = BUTTONS
+    let held = BUTTONS
         .iter()
         .filter(|(button, _)| pad.held(*button))
         .fold(0, |bits, (_, bit)| bits | bit);
-    if pad.held(Button::DPadRight) {
-        held |= mod_fpvhorizon::PAD_NEXT;
-    }
     shared.pad_pressed |= held & !shared.pad_held;
     shared.pad_held = held;
 

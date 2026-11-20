@@ -3,12 +3,17 @@
 //! way home at the bottom, warnings in the centre, and the drone's card while it waits to arm.
 
 use crate::drone::{DroneState, GimbalHud, HudPainter, Preset};
+use crate::setup::model::{LINK_CRITICAL, LINK_LOW};
 use mod_api::DrawContext;
 
-const WHITE: u32 = 0xFFFF_FFFF;
-const DIM: u32 = 0xC0FF_FFFF;
-const WARN: u32 = 0xFFFF_5050;
-const AMBER: u32 = 0xFFFF_C040;
+pub(crate) const WHITE: u32 = 0xFFFF_FFFF;
+pub(crate) const DIM: u32 = 0xC0FF_FFFF;
+pub(crate) const WARN: u32 = 0xFFFF_5050;
+pub(crate) const AMBER: u32 = 0xFFFF_C040;
+/// The hints' light blue.
+pub(crate) const HINT: u32 = 0xFF9A_D0FF;
+/// The LOW SIGNAL badge's dark glass.
+pub(crate) const GLASS: u32 = 0xA810_1214;
 const PANEL: u32 = 0xA0000000;
 
 /// What the OSD shows this frame.
@@ -37,18 +42,20 @@ pub struct Osd<'a> {
     pub pad: Option<PadFamily>,
     /// Seconds, for blinking.
     pub time: f32,
+    /// The setup key's name as Controls shows it (`J`), for the hints.
+    pub setup_key: &'a str,
 }
 
-fn text(d: &mut dyn DrawContext, s: &str, x: f32, y: f32, color: u32) {
+pub(crate) fn text(d: &mut dyn DrawContext, s: &str, x: f32, y: f32, color: u32) {
     d.text(s, [x, y], color, true);
 }
 
-fn text_right(d: &mut dyn DrawContext, s: &str, right: f32, y: f32, color: u32) {
+pub(crate) fn text_right(d: &mut dyn DrawContext, s: &str, right: f32, y: f32, color: u32) {
     let w = d.text_width(s);
     text(d, s, right - w, y, color);
 }
 
-fn text_centre(d: &mut dyn DrawContext, s: &str, cx: f32, y: f32, color: u32) {
+pub(crate) fn text_centre(d: &mut dyn DrawContext, s: &str, cx: f32, y: f32, color: u32) {
     let w = d.text_width(s);
     text(d, s, cx - w / 2.0, y, color);
 }
@@ -58,11 +65,15 @@ fn text_centre(d: &mut dyn DrawContext, s: &str, cx: f32, y: f32, color: u32) {
 pub enum PadButton {
     North,
     West,
+    South,
+    East,
     L1,
     R1,
     Up,
+    Down,
     Left,
     Right,
+    Select,
 }
 
 impl PadButton {
@@ -73,6 +84,8 @@ impl PadButton {
         match (family, self) {
             (PadFamily::NintendoLetters, PadButton::North) => (PadFamily::Nintendo, PadButton::West),
             (PadFamily::NintendoLetters, PadButton::West) => (PadFamily::Nintendo, PadButton::North),
+            (PadFamily::NintendoLetters, PadButton::South) => (PadFamily::Nintendo, PadButton::East),
+            (PadFamily::NintendoLetters, PadButton::East) => (PadFamily::Nintendo, PadButton::South),
             (PadFamily::NintendoLetters, button) => (PadFamily::Nintendo, button),
             other => other,
         }
@@ -87,6 +100,10 @@ impl PadButton {
         let name = match (family, button) {
             (F::Xbox, B::North) => "xb_y",
             (F::Xbox, B::West) => "xb_x",
+            (F::Xbox, B::South) => "xb_a",
+            (F::Xbox, B::East) => "xb_b",
+            (F::Xbox, B::Down) => "xb_down",
+            (F::Xbox, B::Select) => "xb_view",
             (F::Xbox, B::L1) => "xb_lb",
             (F::Xbox, B::R1) => "xb_rb",
             (F::Xbox, B::Up) => "xb_up",
@@ -94,6 +111,10 @@ impl PadButton {
             (F::Xbox, B::Right) => "xb_right",
             (F::PlayStation, B::North) => "psx_triangle",
             (F::PlayStation, B::West) => "psx_square",
+            (F::PlayStation, B::South) => "psx_cross",
+            (F::PlayStation, B::East) => "psx_circle",
+            (F::PlayStation, B::Down) => "psx_down",
+            (F::PlayStation, B::Select) => "psx_create",
             (F::PlayStation, B::L1) => "psx_l1",
             (F::PlayStation, B::R1) => "psx_r1",
             (F::PlayStation, B::Up) => "psx_up",
@@ -101,6 +122,10 @@ impl PadButton {
             (F::PlayStation, B::Right) => "psx_right",
             (F::Nintendo, B::North) => "nx_x",
             (F::Nintendo, B::West) => "nx_y",
+            (F::Nintendo, B::South) => "nx_b",
+            (F::Nintendo, B::East) => "nx_a",
+            (F::Nintendo, B::Down) => "nx_down",
+            (F::Nintendo, B::Select) => "nx_minus",
             (F::Nintendo, B::L1) => "nx_l",
             (F::Nintendo, B::R1) => "nx_r",
             (F::Nintendo, B::Up) => "nx_up",
@@ -118,17 +143,27 @@ impl PadButton {
         match self.on_pad(family) {
             (PadFamily::Xbox, B::North) => "Y",
             (PadFamily::Xbox, B::West) => "X",
+            (PadFamily::Xbox, B::South) => "A",
+            (PadFamily::Xbox, B::East) => "B",
+            (PadFamily::Xbox, B::Select) => "View",
             (PadFamily::Xbox, B::L1) => "LB",
             (PadFamily::Xbox, B::R1) => "RB",
             (PadFamily::PlayStation, B::North) => "Triangle",
             (PadFamily::PlayStation, B::West) => "Square",
+            (PadFamily::PlayStation, B::South) => "Cross",
+            (PadFamily::PlayStation, B::East) => "Circle",
+            (PadFamily::PlayStation, B::Select) => "Create",
             (PadFamily::PlayStation, B::L1) => "L1",
             (PadFamily::PlayStation, B::R1) => "R1",
             (PadFamily::Nintendo, B::North) => "X",
             (PadFamily::Nintendo, B::West) => "Y",
+            (PadFamily::Nintendo, B::South) => "B",
+            (PadFamily::Nintendo, B::East) => "A",
+            (PadFamily::Nintendo, B::Select) => "-",
             (PadFamily::Nintendo, B::L1) => "L",
             (PadFamily::Nintendo, B::R1) => "R",
             (_, B::Up) => "Up",
+            (_, B::Down) => "Down",
             (_, B::Left) => "Left",
             (_, B::Right) => "Right",
             (PadFamily::NintendoLetters, _) => unreachable!("on_pad maps letters to Nintendo"),
@@ -164,7 +199,7 @@ fn glyph_width(button: PadButton, family: PadFamily) -> f32 {
     texture_w / 2.0 - 2.0 * GLYPH_MARGIN
 }
 
-fn hint_width(d: &dyn DrawContext, hint: &[Hint], family: PadFamily) -> f32 {
+pub(crate) fn hint_width(d: &dyn DrawContext, hint: &[Hint], family: PadFamily) -> f32 {
     hint.iter()
         .map(|h| match *h {
             Hint::Text(s) => d.text_width(s),
@@ -175,7 +210,7 @@ fn hint_width(d: &dyn DrawContext, hint: &[Hint], family: PadFamily) -> f32 {
 
 /// A hint line centred on `cx`, its buttons drawn with Horizon's art in `family`'s glyphs, or
 /// by their print where a pack took the art away.
-fn hint_centre(d: &mut dyn DrawContext, hint: &[Hint], family: PadFamily, cx: f32, y: f32, color: u32) {
+pub(crate) fn hint_centre(d: &mut dyn DrawContext, hint: &[Hint], family: PadFamily, cx: f32, y: f32, color: u32) {
     let mut x = cx - hint_width(d, hint, family) / 2.0;
     for h in hint {
         match *h {
@@ -209,7 +244,7 @@ fn input_hint(d: &mut dyn DrawContext, osd: &Osd<'_>, keys: &str, pad: &[Hint], 
 
 /// A vertical gradient from `top` to `bottom` colour over `rect`, in thin bands (the draw
 /// context has no gradient fill of its own).
-fn gradient(d: &mut dyn DrawContext, rect: [f32; 4], top: u32, bottom: u32) {
+pub(crate) fn gradient(d: &mut dyn DrawContext, rect: [f32; 4], top: u32, bottom: u32) {
     let [x, y, w, h] = rect;
     if h <= 0.0 {
         return;
@@ -228,7 +263,7 @@ fn gradient(d: &mut dyn DrawContext, rect: [f32; 4], top: u32, bottom: u32) {
 }
 
 /// A line `width` thick from `a` to `b`.
-fn line(d: &mut dyn DrawContext, a: [f32; 2], b: [f32; 2], width: f32, color: u32) {
+pub(crate) fn line(d: &mut dyn DrawContext, a: [f32; 2], b: [f32; 2], width: f32, color: u32) {
     let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
     let len = (dx * dx + dy * dy).sqrt().max(1e-3);
     let (nx, ny) = (-dy / len * width / 2.0, dx / len * width / 2.0);
@@ -236,7 +271,7 @@ fn line(d: &mut dyn DrawContext, a: [f32; 2], b: [f32; 2], width: f32, color: u3
 }
 
 /// Words of `s` wrapped to lines no wider than `width`.
-fn wrap(d: &dyn DrawContext, s: &str, width: f32) -> Vec<String> {
+pub(crate) fn wrap(d: &dyn DrawContext, s: &str, width: f32) -> Vec<String> {
     let mut lines = Vec::new();
     let mut line = String::new();
     for word in s.split_whitespace() {
@@ -255,8 +290,6 @@ fn wrap(d: &dyn DrawContext, s: &str, width: f32) -> Vec<String> {
 
 /// Link quality below which the picture starts breaking up.
 const STATIC_START: f32 = 75.0;
-/// Link quality below which the LOW SIGNAL badge shows.
-const LOW_SIGNAL: f32 = 40.0;
 
 /// A well-mixed 32-bit hash, for noise that changes every frame but is stable within one.
 fn hash(mut x: u32) -> u32 {
@@ -337,7 +370,7 @@ fn draw_interference(d: &mut dyn DrawContext, w: f32, h: f32, link: f32, time: f
 }
 
 /// Four signal bars, `x` the left edge and `y` their baseline; `level` 0..100.
-fn signal_bars(d: &mut dyn DrawContext, x: f32, y: f32, level: f32, color: u32) {
+pub(crate) fn signal_bars(d: &mut dyn DrawContext, x: f32, y: f32, level: f32, color: u32) {
     for i in 0..4 {
         let bh = 3.0 + i as f32 * 2.0;
         let lit = level > i as f32 * 25.0 + 1.0;
@@ -346,17 +379,24 @@ fn signal_bars(d: &mut dyn DrawContext, x: f32, y: f32, level: f32, color: u32) 
     }
 }
 
+/// `color` with its alpha scaled by `a` (0..1).
+pub(crate) fn fade(color: u32, a: f32) -> u32 {
+    let alpha = ((color >> 24) as f32 * a.clamp(0.0, 1.0)).round() as u32;
+    alpha << 24 | (color & 0x00FF_FFFF)
+}
+
 /// The LOW SIGNAL badge: a dark pill with bars, the warning, and how far is left before the
 /// link is lost. It breathes instead of blinking, so it stays readable while you turn back.
-fn draw_low_signal(d: &mut dyn DrawContext, osd: &Osd<'_>, cx: f32, y: f32) {
-    let critical = osd.link < 15.0;
+/// `link` is the link quality, `distance` and `range` blocks from the pilot, `y` its top.
+pub(crate) fn low_signal_badge(d: &mut dyn DrawContext, link: f32, distance: f64, range: f64, time: f32, cx: f32, y: f32) {
+    let critical = link < LINK_CRITICAL;
     let rate = if critical { 7.0 } else { 3.5 };
-    let pulse = 0.7 + 0.3 * (osd.time * rate).sin();
+    let pulse = 0.7 + 0.3 * (time * rate).sin();
     let base = if critical { WARN } else { AMBER };
     let color = ((pulse * 255.0) as u32) << 24 | (base & 0x00FF_FFFF);
 
     let title = "LOW SIGNAL";
-    let left = (osd.range - osd.distance).max(0.0);
+    let left = (range - distance).max(0.0);
     let hint = if critical { format!("TURN BACK  {left:.0}m left") } else { format!("{left:.0}m to range") };
     let tw = d.text_width(title);
     let hw = d.text_width(&hint);
@@ -365,14 +405,14 @@ fn draw_low_signal(d: &mut dyn DrawContext, osd: &Osd<'_>, cx: f32, y: f32) {
     let ph = 27.0;
     let x = cx - pw / 2.0;
 
-    d.fill([x, y, pw, ph], 0xA810_1214);
+    d.fill([x, y, pw, ph], GLASS);
     d.fill([x, y, pw, 1.0], color);
     // How much link is left, as a thin bar along the bottom edge.
     d.fill([x, y + ph - 2.0, pw, 2.0], 0x40FF_FFFF);
-    d.fill([x, y + ph - 2.0, pw * (osd.link / LOW_SIGNAL).clamp(0.0, 1.0), 2.0], base);
+    d.fill([x, y + ph - 2.0, pw * (link / LINK_LOW).clamp(0.0, 1.0), 2.0], base);
 
     let row_x = cx - (tw + 18.0) / 2.0;
-    signal_bars(d, row_x, y + 12.0, osd.link, color);
+    signal_bars(d, row_x, y + 12.0, link, color);
     text(d, title, row_x + 18.0, y + 4.0, color);
     text_centre(d, &hint, cx, y + 14.0, DIM);
 }
@@ -386,7 +426,7 @@ impl HudPainter for Painter<'_> {
 }
 
 /// `s` in the big pixel font, centred on `cx`, its top at `y`, each font pixel `px` wide.
-fn big_text(d: &mut dyn DrawContext, s: &str, cx: f32, y: f32, px: f32, color: u32) {
+pub(crate) fn big_text(d: &mut dyn DrawContext, s: &str, cx: f32, y: f32, px: f32, color: u32) {
     crate::font::draw_centred(d, s, cx, y, px, color);
 }
 
@@ -438,10 +478,11 @@ fn draw_showcase(d: &mut dyn DrawContext, osd: &Osd<'_>) {
     );
     text_centre(d, &specs, cx, y, WHITE);
     y += 16.0;
+    let keys = format!("Throttle down + R: arm and fly    H: back to you    {}: setup", osd.setup_key);
     input_hint(
         d,
         osd,
-        "Throttle down + R: arm and fly    H: back to you",
+        &keys,
         &[
             Hint::Text("Throttle down + "),
             Hint::Pad(PadButton::North),
@@ -449,11 +490,13 @@ fn draw_showcase(d: &mut dyn DrawContext, osd: &Osd<'_>) {
             Hint::Pad(PadButton::L1),
             Hint::Text("+"),
             Hint::Pad(PadButton::R1),
-            Hint::Text(": back to you"),
+            Hint::Text(": back to you    "),
+            Hint::Pad(PadButton::Select),
+            Hint::Text(": setup"),
         ],
         cx,
         y,
-        0xFF9A_D0FF,
+        HINT,
     );
 }
 
@@ -505,7 +548,7 @@ pub fn draw(d: &mut dyn DrawContext, osd: &Osd<'_>) {
     text(d, &name, 6.0, 6.0, DIM);
     let t = s.flight_time as u32;
     text_centre(d, &format!("{:02}:{:02}", t / 60, t % 60), cx, 6.0, WHITE);
-    let lq_color = if osd.link < 15.0 { WARN } else if osd.link < LOW_SIGNAL { AMBER } else { WHITE };
+    let lq_color = if osd.link < LINK_CRITICAL { WARN } else if osd.link < LINK_LOW { AMBER } else { WHITE };
     let lq = format!("LQ {:3.0}  {:.0}m", osd.link, osd.distance);
     let lq_w = d.text_width(&lq);
     text_right(d, &lq, w - 6.0, 6.0, lq_color);
@@ -559,8 +602,8 @@ pub fn draw(d: &mut dyn DrawContext, osd: &Osd<'_>) {
     if s.physics.is_overheat() {
         warnings.push(("MOTORS HOT", AMBER));
     }
-    if osd.link > 0.0 && osd.link < LOW_SIGNAL {
-        draw_low_signal(d, osd, cx, cy - 58.0);
+    if osd.link > 0.0 && osd.link < LINK_LOW {
+        low_signal_badge(d, osd.link, osd.distance, osd.range, osd.time, cx, cy - 58.0);
     }
     let mut y = cy + 20.0;
     for (msg, color) in warnings {
@@ -607,7 +650,10 @@ pub fn draw(d: &mut dyn DrawContext, osd: &Osd<'_>) {
                 .collect(),
             )
         };
-        input_hint(d, osd, keys, &pad, cx, top + card_h - 12.0, 0xFF9AD0FF);
+        input_hint(d, osd, keys, &pad, cx, top + card_h - 12.0, HINT);
+        // The way to the setup screen, under the card.
+        let setup = format!("{}: setup", osd.setup_key);
+        input_hint(d, osd, &setup, &[Hint::Pad(PadButton::Select), Hint::Text(": setup")], cx, top + card_h + 5.0, DIM);
     }
 
     if osd.show_sticks {

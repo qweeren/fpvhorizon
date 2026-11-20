@@ -5,6 +5,9 @@
 //! Backspace (Square), switch view with V (D-pad up), change drone with [ ] (D-pad) on the
 //! ground, and H again lands you back in your own eyes.
 //!
+//! J (Select on a pad while a drone is out, or the button on the pause menu) opens the setup
+//! screen (`src/setup/`), where every setting is, with live previews.
+//!
 //! Each client tick (`client_tick_post`) runs the drone's physics against the world's blocks.
 //! Each frame (`camera_pose`) turns it by the sticks and puts the camera on it. The tick module
 //! (`src/adapter.rs`) reads the gamepad and the player, which the mod API has no read for.
@@ -16,14 +19,17 @@ mod osd;
 pub use osd::PadFamily;
 mod render;
 mod settings;
+mod setup;
 mod sound;
 
 use mod_api::{
-    CameraPoseEvent, CameraType, ClientHost, ClientTickPostEvent, GuiRenderPostEvent, Hooks,
+    CameraPoseEvent, CameraType, ClientHost, ClientTickPostEvent, Flow, GuiRenderPostEvent, Hooks,
     HudMode, InputKeyEvent, KeyAction, ModelBakingCompletedEvent, MovementInputEvent, Registrar,
-    RegistrationContext, RenderLevelStage, RenderLevelStageEvent, StandaloneModelsEvent,
+    RegistrationContext, RenderLevelStage, RenderLevelStageEvent, ScreenKeyPressedPreEvent,
+    ScreenMouseButtonPressedPreEvent, ScreenMouseButtonReleasedPreEvent, ScreenMouseDraggedPreEvent,
+    ScreenMouseScrolledPreEvent, ScreenRenderPostEvent, StandaloneModelsEvent,
 };
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 /// Gamepad buttons, as bits the tick module sets.
@@ -34,6 +40,15 @@ pub const PAD_RESET: u32 = 8;
 pub const PAD_VIEW: u32 = 16;
 pub const PAD_PREV: u32 = 32;
 pub const PAD_NEXT: u32 = 64;
+pub const PAD_DOWN: u32 = 128;
+pub const PAD_SOUTH: u32 = 256;
+pub const PAD_SELECT: u32 = 512;
+
+/// Seconds since the mod first asked, for what blinks and breathes.
+pub(crate) fn time() -> f32 {
+    static EPOCH: OnceLock<Instant> = OnceLock::new();
+    EPOCH.get_or_init(Instant::now).elapsed().as_secs_f32()
+}
 
 /// A client tick, seconds.
 const TICK: f32 = 0.05;
@@ -226,6 +241,33 @@ pub fn camera_roll() -> f32 {
     if flying(&shared) && view_now(&shared) == View::Fpv { shared.roll } else { 0.0 }
 }
 
+/// What the setup screen shows of the drone and the pad.
+fn live() -> setup::Live {
+    let shared = SHARED.lock().unwrap();
+    let drone = shared.drone.as_ref().filter(|d| d.active);
+    setup::Live {
+        sticks: shared.sticks,
+        pad: shared.sticks.is_some().then_some(shared.pad_family),
+        drone_out: drone.is_some(),
+        armed: drone.is_some_and(|d| d.armed),
+        distance: shared.distance,
+    }
+}
+
+/// The pad's bits as the setup screen's buttons.
+fn pad_input(bits: u32) -> setup::PadInput {
+    setup::PadInput {
+        up: bits & PAD_VIEW != 0,
+        down: bits & PAD_DOWN != 0,
+        left: bits & PAD_PREV != 0,
+        right: bits & PAD_NEXT != 0,
+        select: bits & PAD_SOUTH != 0,
+        reset: bits & PAD_RESET != 0,
+        prev_page: bits & PAD_L1 != 0,
+        next_page: bits & PAD_R1 != 0,
+    }
+}
+
 /// The fisheye lens's post chains, by the settings page's choice (Off first).
 const FISHEYE_EFFECTS: [Option<&str>; 4] =
     [None, Some("fpvhorizon:fisheye_light"), Some("fpvhorizon:fisheye_medium"), Some("fpvhorizon:fisheye_strong")];
@@ -370,6 +412,16 @@ impl Hooks for Mod {
     /// Each tick, after the tick module read the pad and the pilot: settings, keys, physics,
     /// link, camera mode, HUD and sound.
     fn client_tick_post(&self, host: &mut dyn ClientHost, _: &mut ClientTickPostEvent) {
+        // The setup screen first: its key, and the pad's buttons while it is open (the pad's
+        // Select opens it, which the drone never uses).
+        let (pressed, held) = {
+            let mut shared = SHARED.lock().unwrap();
+            (std::mem::take(&mut shared.pad_pressed), shared.pad_held)
+        };
+        setup::tick(host, &live(), pad_input(pressed), pad_input(held), pressed & PAD_SELECT != 0);
+        // The drone holds still while the setup screen is open, and while the game is paused.
+        let paused = setup::is_open(&*host) || host.is_paused();
+
         let mut guard = SHARED.lock().unwrap();
         let shared = &mut *guard;
         let mutable_host = host;
@@ -402,8 +454,9 @@ impl Hooks for Mod {
             refit |= !drone.armed && settings::build(host, shared.preset) != drone.build;
         }
 
-        // Pad presses: L1 + R1 together, and single buttons.
-        let pressed = std::mem::take(&mut shared.pad_pressed);
+        // Pad presses: L1 + R1 together, and single buttons (none while the setup screen
+        // has them).
+        let pressed = if paused { 0 } else { pressed };
         let r = &mut shared.requests;
         if pressed & (PAD_L1 | PAD_R1) != 0 && shared.pad_held & (PAD_L1 | PAD_R1) == PAD_L1 | PAD_R1 {
             r.toggle = true;
@@ -464,21 +517,19 @@ impl Hooks for Mod {
         }
 
         // The video link fades with distance from the pilot; past the range it is lost and the
-        // flight controller's failsafe disarms. Full strength out to LINK_FADE_START of the
-        // range, then a straight line down to nothing, so the warning comes early and steadily.
+        // flight controller's failsafe disarms. Full strength out to a share of the range, then
+        // a straight line down to nothing, so the warning comes early and steadily.
         if let (true, Some(player)) = (drone.active, shared.player) {
-            const LINK_FADE_START: f64 = 0.3;
             let d = std::array::from_fn::<f64, 3, _>(|i| drone.position[i] - player.eye[i]);
             shared.distance = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
             shared.range = range;
-            let x = shared.distance / range.max(1.0);
-            shared.link = (100.0 * ((1.0 - x) / (1.0 - LINK_FADE_START)).clamp(0.0, 1.0)) as f32;
+            shared.link = setup::model::link_quality(shared.distance, range);
             if shared.link <= 0.0 && drone.armed {
                 drone.disarm();
             }
         }
 
-        if drone.active && shared.player.is_some() {
+        if drone.active && shared.player.is_some() && !paused {
             let (half, height) = (drone.half_width, drone.height);
             drone.physics_tick(TICK, |pos, movement| sweep(host, pos, movement, half, height));
         }
@@ -518,7 +569,7 @@ impl Hooks for Mod {
             settings::f(host, "motor_volume").unwrap_or(0.6),
             settings::f(host, "wind_volume").unwrap_or(0.8),
         );
-        let state = shared.drone.as_ref().filter(|d| d.active);
+        let state = shared.drone.as_ref().filter(|d| d.active && !paused);
         shared.audio.update(host, state, far, volumes);
         if let Some(mode) = hud {
             mutable_host.set_hud_mode(mode);
@@ -547,7 +598,7 @@ impl Hooks for Mod {
             shared.roll = 0.0;
             return;
         };
-        if playing {
+        if playing && !setup::is_open(host) && !host.is_paused() {
             drone.frame(dt, &input);
         }
         let partial = event.partial;
@@ -640,6 +691,10 @@ impl Hooks for Mod {
     }
 
     fn gui_render_post(&self, host: &dyn ClientHost, event: &mut GuiRenderPostEvent<'_>) {
+        // The OSD is drawn over the screens: none under the setup screen or the pause menu.
+        if setup::is_open(host) || host.is_paused() {
+            return;
+        }
         let shared = SHARED.lock().unwrap();
         if event.gui_hidden && shared.saved_hud.is_none() {
             return;
@@ -665,7 +720,59 @@ impl Hooks for Mod {
             show_sticks: shared.show_sticks,
             pad: shared.sticks.is_some().then_some(shared.pad_family),
             time: shared.started.map_or(0.0, |s| s.elapsed().as_secs_f32()),
+            setup_key: &settings::setup_key_name(host),
         };
         osd::draw(&mut *event.batch, &osd);
+    }
+
+    /// The setup screen, and its button on the pause menu.
+    fn screen_render_post(&self, host: &dyn ClientHost, event: &mut ScreenRenderPostEvent<'_>) {
+        if setup::is_open(host) {
+            setup::draw(&mut *event.draw, host, &live(), event.screen.mouse);
+        } else if event.screen.id == "paused" && host.mod_screen().is_none() {
+            setup::draw_pause_button(&mut *event.draw, event.screen.mouse);
+        }
+    }
+
+    fn screen_mouse_button_pressed_pre(&self, host: &dyn ClientHost, event: &mut ScreenMouseButtonPressedPreEvent<'_>) -> Flow {
+        if setup::is_open(host) {
+            setup::mouse_pressed(host, &live(), event.screen.mouse, event.button);
+            return Flow::Cancel;
+        }
+        if event.screen.id == "paused" && event.button == 0 && setup::pause_click(event.screen.mouse) {
+            return Flow::Cancel;
+        }
+        Flow::Continue
+    }
+
+    fn screen_mouse_button_released_pre(&self, host: &dyn ClientHost, _: &mut ScreenMouseButtonReleasedPreEvent<'_>) -> Flow {
+        if setup::is_open(host) {
+            setup::mouse_released();
+            return Flow::Cancel;
+        }
+        Flow::Continue
+    }
+
+    fn screen_mouse_dragged_pre(&self, host: &dyn ClientHost, event: &mut ScreenMouseDraggedPreEvent<'_>) -> Flow {
+        if setup::is_open(host) {
+            setup::mouse_dragged(host, event.screen.mouse);
+            return Flow::Cancel;
+        }
+        Flow::Continue
+    }
+
+    fn screen_mouse_scrolled_pre(&self, host: &dyn ClientHost, event: &mut ScreenMouseScrolledPreEvent<'_>) -> Flow {
+        if setup::is_open(host) {
+            setup::mouse_scrolled(host, event.screen.mouse, event.scroll[1], event.modifiers);
+            return Flow::Cancel;
+        }
+        Flow::Continue
+    }
+
+    fn screen_key_pressed_pre(&self, host: &dyn ClientHost, event: &mut ScreenKeyPressedPreEvent<'_>) -> Flow {
+        if setup::is_open(host) && setup::key_pressed(host, &live(), event.key, event.modifiers) {
+            return Flow::Cancel;
+        }
+        Flow::Continue
     }
 }

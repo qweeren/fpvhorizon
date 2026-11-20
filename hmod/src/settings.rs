@@ -1,61 +1,57 @@
-//! The mod's page in Options > Mods. The drone is a real preset unless "Custom Build" is on,
-//! which hands the build to the sliders. Rates, sound and the physics constants apply to any.
+//! The mod's settings, kept by the game: registered for its page in Options > Mods from the
+//! setup screen's table (`setup::model`), and read here into the drone. The drone is a real
+//! preset unless "Custom Build" is on, which hands the build to the sliders. Rates, sound and
+//! the physics constants apply to any.
 
 use crate::drone::{self, BuildParam, ControlAxis, DroneState, PhysicsParam, PRESETS};
-use mod_api::{ClientHost, Registrar, SettingSpec};
+use crate::setup::model::{self, Kind};
+use mod_api::{ClientHost, KeyRegistration, Registrar, SettingSpec};
 
 pub const MOD_ID: &str = "fpvhorizon";
-/// The fisheye lens's choice by default: Medium.
-pub const FISHEYE_DEFAULT: usize = 2;
+pub use model::FISHEYE_DEFAULT;
+/// The setup screen's key mapping, and the key it starts on.
+pub const SETUP_KEY: &str = "setup";
+const SETUP_KEY_DEFAULT: &str = "key.keyboard.j";
 /// The rate axes on the page (throttle has no rate).
-const AXES: [ControlAxis; 3] = [ControlAxis::Roll, ControlAxis::Pitch, ControlAxis::Yaw];
-
-fn label(key: &str) -> String {
-    format!("fpvhorizon.setting.{key}")
-}
-
-fn range(key: &str, min: f64, max: f64, step: f64, default: f64) -> SettingSpec {
-    SettingSpec::range(key, label(key), min, max, step, default)
-}
+const AXES: [ControlAxis; 3] = model::RATE_AXES;
 
 pub fn register(r: &mut dyn Registrar) {
-    use drone::controller as c;
-    let mut specs = vec![
-        SettingSpec::choice("drone", label("drone"), PRESETS.iter().map(|p| format!("fpvhorizon.preset.{}", p.id)), 0),
-        SettingSpec::toggle("custom_build", label("custom_build"), false),
-        SettingSpec::toggle("hide_hud", label("hide_hud"), true),
-        SettingSpec::toggle("show_sticks", label("show_sticks"), true),
-        range("fpv_fov", 60.0, 150.0, 1.0, 110.0),
-        SettingSpec::choice(
-            "fisheye",
-            label("fisheye"),
-            ["off", "light", "medium", "strong"].map(|l| format!("fpvhorizon.fisheye.{l}")),
-            FISHEYE_DEFAULT,
-        ),
-        range("mouse_sensitivity", 0.1, 5.0, 0.05, 1.0),
-        range("gravity", 4.0, 30.0, 0.1, 9.8),
-        SettingSpec::toggle("throttle_centre_hover", label("throttle_centre_hover"), true),
-        SettingSpec::toggle("mode_3d", label("mode_3d"), false),
-        range("deadzone", 0.0, 0.3, 0.01, f64::from(c::DEFAULT_DEADZONE)),
-        range("range", 32.0, 512.0, 8.0, 160.0),
-        range("motor_volume", 0.0, 1.0, 0.05, 0.6),
-        range("wind_volume", 0.0, 1.0, 0.05, 0.8),
-    ];
-    for axis in AXES {
-        let a = axis.key();
-        specs.push(range(&format!("rate_{a}_rc"), f64::from(c::RC_RATE_MIN), f64::from(c::RC_RATE_MAX), 0.01, f64::from(c::DEFAULT_RC_RATE)));
-        specs.push(range(&format!("rate_{a}_super"), f64::from(c::SUPER_RATE_MIN), f64::from(c::SUPER_RATE_MAX), 0.01, f64::from(c::DEFAULT_SUPER_RATE)));
-        specs.push(range(&format!("rate_{a}_expo"), f64::from(c::EXPO_MIN), f64::from(c::EXPO_MAX), 0.01, f64::from(c::DEFAULT_EXPO)));
-    }
-    for p in BuildParam::ALL {
-        specs.push(range(&format!("build_{}", p.key()), f64::from(p.min()), f64::from(p.max()), f64::from(p.step()), f64::from(p.default_value())));
-    }
-    for p in PhysicsParam::ALL {
-        specs.push(range(&format!("physics_{}", p.key()), f64::from(p.min()), f64::from(p.max()), f64::from(p.step()), f64::from(p.default_value())));
-    }
-    for spec in specs {
+    for s in model::settings() {
+        let label = format!("fpvhorizon.setting.{}", s.key);
+        let spec = match &s.kind {
+            Kind::Range { min, max, step, default, .. } => SettingSpec::range(&s.key, label, *min, *max, *step, *default),
+            Kind::Toggle { default } => SettingSpec::toggle(&s.key, label, *default),
+            Kind::Choice { options, default } => {
+                SettingSpec::choice(&s.key, label, options.iter().map(|(key, _)| key.clone()), *default)
+            }
+        };
         let _ = r.register_setting(spec);
     }
+    r.register_key_mapping(KeyRegistration::new(SETUP_KEY, SETUP_KEY_DEFAULT).label("fpvhorizon.key.setup"));
+}
+
+/// The setup key's name as Controls shows it: `J`, or what the player bound it to.
+pub fn setup_key_name(host: &dyn ClientHost) -> String {
+    let key = host.mod_key(MOD_ID, SETUP_KEY).map_or_else(|| SETUP_KEY_DEFAULT.to_string(), |(key, _)| key);
+    key_label(&key)
+}
+
+/// `key.keyboard.left.bracket` as a person writes it: `Left Bracket`; a letter in capitals.
+fn key_label(key: &str) -> String {
+    let words = |name: &str| {
+        name.split('.')
+            .map(|w| {
+                let mut c = w.chars();
+                c.next().map_or_else(String::new, |first| first.to_ascii_uppercase().to_string() + c.as_str())
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    if let Some(button) = key.strip_prefix("key.mouse.") {
+        return format!("Mouse {}", words(button));
+    }
+    let name = key.strip_prefix("key.keyboard.").unwrap_or(key);
+    if name.chars().count() == 1 { name.to_uppercase() } else { words(name) }
 }
 
 pub fn f(host: &dyn ClientHost, key: &str) -> Option<f32> {
