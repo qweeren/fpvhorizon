@@ -70,6 +70,31 @@ cancellable = true
 helper = "src/mixins/pad.rs"
 bindings = [{ name = "down", ty = "bool", value = "down" }]
 
+# In a single-player world the world loads round the drone while you fly it. The world's
+# server streams it round where the player is, and single player always runs one: so while a
+# drone flies, the window reports the player over the drone, far above the world, as a
+# spectator's camera moves its player (no mod API moves what the server streams round). The
+# pilot's body on screen stays where it stood (the tick module holds it until its ground is back).
+[[native.mixin]]
+id = "view_pos"
+target = "horizon_client::game::remote::Game<'_>::remote_send_state"
+kind = "MODIFY_EXPRESSION_VALUE"
+selector = "[p.position.x, p.position.y, p.position.z]"
+require = 1
+ordinal = 0
+helper = "src/mixins/view_pos.rs"
+bindings = [{ name = "value", ty = "[f64; 3]", value = "$value" }]
+
+[[native.mixin]]
+id = "view_ground"
+target = "horizon_client::game::remote::Game<'_>::remote_send_state"
+kind = "MODIFY_EXPRESSION_VALUE"
+selector = "p.ground.on_ground"
+require = 1
+ordinal = 0
+helper = "src/mixins/view_ground.rs"
+bindings = [{ name = "value", ty = "bool", value = "$value" }]
+
 # The FPV camera's fisheye lens: a post chain (assets/fpvhorizon/post_effect/fisheye_*.json)
 # added after the frame's own, as a creeper's view is added while spectating one. The mod API
 # has no way to request a post effect, so this adds it to the list the frame is drawn through.

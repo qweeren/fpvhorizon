@@ -3,6 +3,11 @@
 // where the player stands and looks. The drone itself lives in the mod's crate.
 
 use crate::game::{Game, Screen};
+use std::sync::Mutex;
+
+/// Where the pilot stands while the world loads round the drone: they are held there until the
+/// ground under them is loaded again.
+static PILOT_HOLD: Mutex<Option<[f64; 3]>> = Mutex::new(None);
 use horizon_client::gamepad::{Button, GlyphStyle, MenuJob};
 use horizon_client::pad_glyph::Glyph;
 
@@ -34,6 +39,35 @@ pub fn tick(game: &mut Game<'_>) {
         alive: !p.health.dead_or_dying(),
     });
     shared.playing = game.title.is_none() && !game.pause && matches!(game.screen, Screen::Playing);
+    // Single player: this window runs the world's server itself.
+    shared.singleplayer = game.integrated.is_some();
+
+    // While the server keeps the world round the drone, the pilot's own ground unloads here: the
+    // body stays where it stood, and is let go once that ground is back.
+    let mut hold = PILOT_HOLD.lock().unwrap();
+    if let Some(p) = game.player.as_mut() {
+        let here = [p.position.x, p.position.y, p.position.z];
+        if shared.view_from.is_some() && hold.is_none() {
+            *hold = Some(here);
+        }
+        if let Some(at) = *hold {
+            let ground = game.world.is_loaded_at(at[0].floor() as i32, at[1].floor() as i32 - 1, at[2].floor() as i32);
+            if shared.view_from.is_none() && ground {
+                *hold = None;
+            } else {
+                p.position.x = at[0];
+                p.position.y = at[1];
+                p.position.z = at[2];
+                p.velocity.x = 0.0;
+                p.velocity.y = 0.0;
+                p.velocity.z = 0.0;
+                p.fall_distance = 0.0;
+            }
+        }
+    } else {
+        *hold = None;
+    }
+    drop(hold);
 
     // Mode 2: left stick throttle and yaw, right stick pitch and roll, while the pad is in use.
     let pad = game.pad.state;

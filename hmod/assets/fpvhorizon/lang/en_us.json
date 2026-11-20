@@ -52,5 +52,6 @@
   "fpvhorizon.fisheye.strong": "Strong",
   "fpvhorizon.key.setup": "Open FPV Horizon Setup",
   "fpvhorizon.setting.battery_sim": "Battery Drain and Sag",
-  "fpvhorizon.setting.heat_sim": "Motor Heat"
+  "fpvhorizon.setting.heat_sim": "Motor Heat",
+  "fpvhorizon.setting.load_chunks": "Load the World Around the Drone (single player)"
 }

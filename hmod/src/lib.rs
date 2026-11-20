@@ -144,6 +144,12 @@ pub struct Shared {
     /// Whose button art the OSD's pad hints use, as the tick module last read it.
     pub pad_family: PadFamily,
     pub player: Option<PlayerView>,
+    /// This window plays a single-player world: its own integrated server.
+    pub singleplayer: bool,
+    /// Where the player is reported to the single-player server while the world loads round
+    /// the drone: over the drone, far above the world (`view_pos` mixin). None reports the
+    /// player where they stand.
+    pub view_from: Option<[f64; 3]>,
     /// In a world, unpaused, with no screen open.
     pub playing: bool,
     view: View,
@@ -184,6 +190,8 @@ pub static SHARED: Mutex<Shared> = Mutex::new(Shared {
     pad_pressed: 0,
     pad_family: PadFamily::Xbox,
     player: None,
+    singleplayer: false,
+    view_from: None,
     playing: false,
     view: View::Fpv,
     showcase: None,
@@ -233,6 +241,30 @@ pub fn take_turn(xo: f64, yo: f64) -> bool {
         shared.mouse[1] += (yo * 0.15) as f32 * k;
     }
     true
+}
+
+/// Height the player is reported at while the world loads round the drone: above any level's
+/// build limit (2032), so the body the server keeps there touches nothing.
+const VIEW_HEIGHT: f64 = 2100.0;
+
+/// The `view_pos` mixin: the position the window sends its single-player server for the player
+/// (`value`, where they stand). While a drone flies with its camera on it, the drone's place, high
+/// above the world: the server loads, generates and sends the world round it, as it does for a
+/// spectator's camera, so the drone can fly anywhere.
+pub fn reported_position(value: [f64; 3]) -> [f64; 3] {
+    // The window's update never runs inside the mod's hooks, but a held lock must never stall it.
+    match SHARED.try_lock() {
+        Ok(shared) => shared.view_from.unwrap_or(value),
+        Err(_) => value,
+    }
+}
+
+/// The `view_ground` mixin: up there the player is reported on the ground, so no fall builds up.
+pub fn reported_on_ground(value: bool) -> bool {
+    match SHARED.try_lock() {
+        Ok(shared) => value || shared.view_from.is_some(),
+        Err(_) => value,
+    }
 }
 
 /// The `roll` mixin: the camera's roll for this frame, radians (0 off the drone's camera).
@@ -569,6 +601,15 @@ impl Hooks for Mod {
             settings::f(host, "motor_volume").unwrap_or(0.6),
             settings::f(host, "wind_volume").unwrap_or(0.8),
         );
+        // In a single-player world the world loads round the drone while its camera is on it
+        // (from the pilot's eyes the world round the pilot is what is seen).
+        let follow = host.setting_bool("load_chunks").unwrap_or(true) && shared.singleplayer && view_now(shared) != View::Los;
+        shared.view_from = shared
+            .drone
+            .as_ref()
+            .filter(|d| d.active && follow)
+            .map(|d| [d.position[0], VIEW_HEIGHT, d.position[2]]);
+
         let state = shared.drone.as_ref().filter(|d| d.active && !paused);
         shared.audio.update(host, state, far, volumes);
         if let Some(mode) = hud {
