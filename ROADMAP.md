@@ -35,6 +35,13 @@
 - [ ] PID tuning in the setup screen (P, I, D per axis, D setpoint weight, TPA), as Liftoff's
 - [ ] Sign releases with minisign
 
+## Web: WebAssembly
+
+- [ ] Check whether Horizon has (or plans) a WebAssembly build, and whether native mods can run in it: the mod is a
+      Rust crate, so it needs to compile for `wasm32` and not depend on desktop-only APIs (threads, files, sockets)
+- [ ] If it can, check that the drone simulation (`hmod/src/drone/`, already game-agnostic) and the mixins work there,
+      and what input the web build offers (keyboard, browser Gamepad API)
+
 ## Mobile: Starling (Android)
 
 [Starling](https://github.com/starling-client/starling) is the Android fork of Horizon. It loads native mods only as the
