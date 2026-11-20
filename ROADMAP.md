@@ -10,7 +10,11 @@
 - [x] Submit to the horizon-mods registry: [horizon-mods#1319](https://github.com/horizon-rust/horizon-mods/pull/1319)
 - [ ] Registry review and merge
 
-## Polish before 1.0
+## 1.0.0
+
+- [x] Release `v1.0.0`
+
+## Polish after 1.0
 
 - [ ] Final icon and screenshots for the mod page
 - [x] Use Horizon's native gamepad button icons in the OSD hints instead of text ("D-pad left", "Triangle",
