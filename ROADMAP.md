@@ -13,6 +13,7 @@
 ## 1.0.0
 
 - [x] Release `v1.0.0` (Nightly 2026-11-20, 0a875da)
+- [x] Release `v1.0.1`: OSD hints follow Nintendo letter mode (from review)
 - [ ] Registry review and merge: [horizon-mods#1467](https://github.com/horizon-rust/horizon-mods/pull/1467)
 
 ## Polish after 1.0
