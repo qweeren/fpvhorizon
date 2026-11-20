@@ -8,3 +8,6 @@ __pycache__/
 
 # Packaged .hmod (built and published by CI)
 dist/
+
+# Claude Code worktrees
+.claude/worktrees/

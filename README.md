@@ -11,7 +11,9 @@ FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic q
   - Battery voltage sag under throttle.
   - Block collisions with glancing angles and elastic bouncing.
 - **Real drone presets**: 5" freestyle and race quads, a 3.5" cinewhoop, a 75mm whoop and a 7.5" long-range build, or your own custom build.
-- **Betaflight rates**: RC Rate, Super Rate and Expo for roll, pitch and yaw, configurable deadzone, and an optional 3D mode (reversible throttle).
+- **Betaflight rates**: RC Rate, Super Rate and Expo for roll, pitch and yaw, configurable deadzone.
+- **Flight modes**: Acro, Angle (self-levelling), Horizon (levels near centre stick, flips at full stick) and 3D
+  (reversible motors), switched in flight with L1 or M as in Liftoff, with an adjustable angle limit and level strength.
 - **FPV view**: the camera rolls with the drone, with an adjustable field of view, an OSD and stick gimbal overlays.
 - **Gamepad support**: fly with a controller's sticks, or with mouse and keyboard.
 - **Motor and wind sound**.
@@ -23,6 +25,7 @@ FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic q
 | **H** | **L1 + R1** | Put the drone down and switch to its camera / return to your own eyes |
 | **R** | **Triangle** | Arm / disarm |
 | **V** | **D-pad up** | Switch view |
+| **M** | **L1** | Switch flight mode: Acro → Angle → Horizon → 3D |
 | **[** / **]** | **D-pad left / right** | Change drone (on the ground) |
 | **Backspace** | **Square** | Reset the drone |
 | **J** | **Select** (drone out) | Open the setup screen |
@@ -41,7 +44,7 @@ the air holds still while it is open.
 - **Camera**: field of view and fisheye lens, with a test card seen through the lens and the camera's view cone.
 - **Rates**: RC Rate, Super Rate and Expo per axis, live rate curves, and Cinematic / Default / Freestyle / Race
   profiles.
-- **Controls**: deadzone with your sticks shown live, stick-centre hover, 3D mode, mouse sensitivity, and every key.
+- **Controls**: deadzone with your sticks shown live, stick-centre hover, flight mode, angle limit and level strength, mouse sensitivity, and every key.
 - **Video link**: the range, with a preview of where the LOW SIGNAL and TURN BACK warnings come.
 - **Sound** and **Physics**: volumes, gravity, air density, drag and motor thermal constants.
 

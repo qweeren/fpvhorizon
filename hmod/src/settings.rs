@@ -68,6 +68,11 @@ pub fn choose_preset(host: &dyn ClientHost, index: usize) {
     host.set_setting(MOD_ID, "drone", &index.to_string());
 }
 
+/// Keeps the flight mode switched in flight, so the page and the next session agree.
+pub fn choose_flight_mode(host: &dyn ClientHost, mode: drone::FlightMode) {
+    host.set_setting(MOD_ID, "flight_mode", &mode.index().to_string());
+}
+
 /// The build the drone should have: preset `preset`, or the sliders' with Custom Build on.
 pub fn build(host: &dyn ClientHost, preset: usize) -> drone::DroneBuildConfig {
     let mut b = PRESETS[preset].build();
@@ -112,8 +117,14 @@ pub fn apply(host: &dyn ClientHost, state: &mut DroneState) {
     if let Some(v) = f(host, "deadzone") {
         cfg.deadzone = v;
     }
-    if let Some(on) = host.setting_bool("mode_3d") {
-        cfg.mode_3d = on;
+    if let Some(i) = host.setting_choice("flight_mode") {
+        cfg.flight_mode = drone::FlightMode::from_index(i as usize);
+    }
+    if let Some(v) = f(host, "angle_limit") {
+        cfg.angle_limit = v;
+    }
+    if let Some(v) = f(host, "level_strength") {
+        cfg.level_strength = v;
     }
     if let Some(on) = host.setting_bool("throttle_centre_hover") {
         cfg.throttle_centre_hover = on;

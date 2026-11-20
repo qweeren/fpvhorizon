@@ -846,7 +846,7 @@ fn row_height(row: Row, d: &dyn DrawContext, width: f32) -> f32 {
         },
         Row::RateProfiles => 22.0,
         Row::Button(_) => 22.0,
-        Row::Keys => 8.0 * 11.0 + 4.0,
+        Row::Keys => 9.0 * 11.0 + 4.0,
         Row::Note(s) => 6.0 + osd::wrap(d, s, width).len() as f32 * 10.0,
     }
 }
@@ -1547,11 +1547,12 @@ fn ease_in_out(t: f32) -> f32 {
 /// The keys and pad buttons, for reference.
 fn draw_keys(d: &mut dyn DrawContext, host: &dyn ClientHost, live: &Live, [x, y, w]: [f32; 3]) {
     let setup = settings::setup_key_name(host);
-    let rows: [(&str, String, Vec<Hint>); 8] = [
+    let rows: [(&str, String, Vec<Hint>); 9] = [
         ("Drone out / land", "H".into(), vec![Hint::Pad(PadButton::L1), Hint::Text("+"), Hint::Pad(PadButton::R1)]),
         ("Arm / disarm", "R".into(), vec![Hint::Pad(PadButton::North)]),
         ("Reset to launch", "Backspace".into(), vec![Hint::Pad(PadButton::West)]),
         ("Switch view", "V".into(), vec![Hint::Pad(PadButton::Up)]),
+        ("Flight mode", "M".into(), vec![Hint::Pad(PadButton::L1)]),
         ("Change drone", "[  ]".into(), vec![Hint::Pad(PadButton::Left), Hint::Pad(PadButton::Right)]),
         ("Throttle, yaw", "W S A D".into(), vec![Hint::Text("left stick")]),
         ("Pitch, roll", "Mouse".into(), vec![Hint::Text("right stick")]),

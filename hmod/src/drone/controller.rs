@@ -39,13 +39,89 @@ pub const DEFAULT_SUPER_RATE: f32 = 0.7;
 pub const DEFAULT_EXPO: f32 = 0.0;
 pub const DEFAULT_DEADZONE: f32 = 0.05;
 
+/// Angle and horizon modes: the furthest the sticks tilt the drone, degrees (Betaflight's
+/// `angle_limit`; Liftoff's level angle limit).
+pub const ANGLE_LIMIT_MIN: f32 = 10.0;
+pub const ANGLE_LIMIT_MAX: f32 = 85.0;
+pub const DEFAULT_ANGLE_LIMIT: f32 = 55.0;
+/// How hard self-levelling pulls toward the stick's angle (Betaflight's level P, `angle_strength`).
+pub const LEVEL_STRENGTH_MIN: f32 = 10.0;
+pub const LEVEL_STRENGTH_MAX: f32 = 200.0;
+pub const DEFAULT_LEVEL_STRENGTH: f32 = 50.0;
+
+/// The flight controller's mode: what the roll and pitch sticks command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlightMode {
+    /// Rate mode: the sticks command rotation rates and the drone holds whatever attitude it's left at.
+    #[default]
+    Acro,
+    /// Angle (level) mode: the sticks command a tilt, up to the angle limit, and centred sticks level it.
+    Angle,
+    /// Self-levels near centre stick, flies like acro at full stick (flips and rolls allowed).
+    Horizon,
+    /// Acro with reversible motors: the lower half of the throttle thrusts the other way.
+    Acro3d,
+}
+
+impl FlightMode {
+    /// In the order the mode switch (L1, M) steps through them.
+    pub const ALL: [FlightMode; 4] = [FlightMode::Acro, FlightMode::Angle, FlightMode::Horizon, FlightMode::Acro3d];
+
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|m| *m == self).unwrap_or(0)
+    }
+
+    pub fn from_index(i: usize) -> Self {
+        Self::ALL.get(i).copied().unwrap_or_default()
+    }
+
+    pub fn next(self) -> Self {
+        Self::from_index((self.index() + 1) % Self::ALL.len())
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            FlightMode::Acro => "acro",
+            FlightMode::Angle => "angle",
+            FlightMode::Horizon => "horizon",
+            FlightMode::Acro3d => "3d",
+        }
+    }
+
+    /// As the setup screen names it.
+    pub fn name(self) -> &'static str {
+        match self {
+            FlightMode::Acro => "Acro",
+            FlightMode::Angle => "Angle (level)",
+            FlightMode::Horizon => "Horizon",
+            FlightMode::Acro3d => "3D",
+        }
+    }
+
+    /// As a Betaflight OSD shows it.
+    pub fn osd(self) -> &'static str {
+        match self {
+            FlightMode::Acro => "ACRO",
+            FlightMode::Angle => "ANGL",
+            FlightMode::Horizon => "HOR",
+            FlightMode::Acro3d => "3D",
+        }
+    }
+
+    pub fn is_3d(self) -> bool {
+        self == FlightMode::Acro3d
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ControllerConfig {
     pub deadzone: f32,
     pub rc_rate: [f32; 4],
     pub super_rate: [f32; 4],
     pub expo: [f32; 4],
-    pub mode_3d: bool,
+    pub flight_mode: FlightMode,
+    pub angle_limit: f32,
+    pub level_strength: f32,
     /// A self-centring throttle stick (a gamepad): centre is hover throttle, not 50%.
     pub throttle_centre_hover: bool,
     pub show_axis_values: bool,
@@ -59,7 +135,9 @@ impl Default for ControllerConfig {
             rc_rate: [DEFAULT_RC_RATE; 4],
             super_rate: [DEFAULT_SUPER_RATE; 4],
             expo: [DEFAULT_EXPO; 4],
-            mode_3d: false,
+            flight_mode: FlightMode::Acro,
+            angle_limit: DEFAULT_ANGLE_LIMIT,
+            level_strength: DEFAULT_LEVEL_STRENGTH,
             throttle_centre_hover: true,
             show_axis_values: false,
             show_head_debug: false,
@@ -104,8 +182,15 @@ impl ControllerConfig {
                 let v = v.trim();
                 if k == "deadzone" {
                     if let Ok(num) = v.parse::<f32>() { self.deadzone = num; }
+                } else if k == "flight_mode" {
+                    if let Some(m) = FlightMode::ALL.into_iter().find(|m| m.key() == v) { self.flight_mode = m; }
                 } else if k == "mode_3d" {
-                    self.mode_3d = v.eq_ignore_ascii_case("true");
+                    // Before flight modes: 3D was its own switch.
+                    if v.eq_ignore_ascii_case("true") { self.flight_mode = FlightMode::Acro3d; }
+                } else if k == "angle_limit" {
+                    if let Ok(num) = v.parse::<f32>() { self.angle_limit = num.clamp(ANGLE_LIMIT_MIN, ANGLE_LIMIT_MAX); }
+                } else if k == "level_strength" {
+                    if let Ok(num) = v.parse::<f32>() { self.level_strength = num.clamp(LEVEL_STRENGTH_MIN, LEVEL_STRENGTH_MAX); }
                 } else if k == "show_axis_values" {
                     self.show_axis_values = v.eq_ignore_ascii_case("true");
                 } else if k == "show_head_debug" {
@@ -129,7 +214,9 @@ impl ControllerConfig {
     pub fn to_properties(&self) -> String {
         let mut out = String::from("# FPV Horizon controller config\n");
         out.push_str(&format!("deadzone={}\n", self.deadzone));
-        out.push_str(&format!("mode_3d={}\n", self.mode_3d));
+        out.push_str(&format!("flight_mode={}\n", self.flight_mode.key()));
+        out.push_str(&format!("angle_limit={}\n", self.angle_limit));
+        out.push_str(&format!("level_strength={}\n", self.level_strength));
         out.push_str(&format!("show_axis_values={}\n", self.show_axis_values));
         out.push_str(&format!("show_head_debug={}\n", self.show_head_debug));
         for a in ControlAxis::ALL {

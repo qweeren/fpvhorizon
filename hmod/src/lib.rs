@@ -2,8 +2,9 @@
 //!
 //! H (L1 + R1 on a pad) puts the chosen drone on the ground in front of you and takes you to its
 //! camera; the pilot's body stays where it stood. Arm with R (Triangle), fly, reset with
-//! Backspace (Square), switch view with V (D-pad up), change drone with [ ] (D-pad) on the
-//! ground, and H again lands you back in your own eyes.
+//! Backspace (Square), switch view with V (D-pad up), switch flight mode (acro, angle, horizon,
+//! 3D) with M (L1), change drone with [ ] (D-pad) on the ground, and H again lands you back in
+//! your own eyes.
 //!
 //! J (Select on a pad while a drone is out, or the button on the pause menu) opens the setup
 //! screen (`src/setup/`), where every setting is, with live previews.
@@ -125,6 +126,7 @@ pub struct Requests {
     arm: bool,
     reset: bool,
     view: bool,
+    flight_mode: bool,
     preset_step: i32,
 }
 
@@ -141,6 +143,11 @@ pub struct Shared {
     pub sticks: Option<drone::Sticks>,
     pub pad_held: u32,
     pub pad_pressed: u32,
+    /// L1 went down on its own and R1 hasn't joined it: its release switches the flight mode
+    /// (with R1 it is the land chord instead).
+    l1_alone: bool,
+    /// When the flight mode was last switched, for the OSD's call-out.
+    mode_switched: Option<Instant>,
     /// Whose button art the OSD's pad hints use, as the tick module last read it.
     pub pad_family: PadFamily,
     pub player: Option<PlayerView>,
@@ -178,10 +185,12 @@ pub static SHARED: Mutex<Shared> = Mutex::new(Shared {
     preset_seen: None,
     custom: None,
     keys: KeysHeld::NONE,
-    requests: Requests { toggle: false, arm: false, reset: false, view: false, preset_step: 0 },
+    requests: Requests { toggle: false, arm: false, reset: false, view: false, flight_mode: false, preset_step: 0 },
     sticks: None,
     pad_held: 0,
     pad_pressed: 0,
+    l1_alone: false,
+    mode_switched: None,
     pad_family: PadFamily::Xbox,
     player: None,
     playing: false,
@@ -375,6 +384,7 @@ impl Hooks for Mod {
                 "key.keyboard.r" => r.arm = true,
                 "key.keyboard.backspace" => r.reset = true,
                 "key.keyboard.v" => r.view = true,
+                "key.keyboard.m" => r.flight_mode = true,
                 "key.keyboard.left.bracket" => r.preset_step -= 1,
                 "key.keyboard.right.bracket" => r.preset_step += 1,
                 _ => {}
@@ -464,6 +474,23 @@ impl Hooks for Mod {
         r.arm |= pressed & PAD_ARM != 0;
         r.reset |= pressed & PAD_RESET != 0;
         r.view |= pressed & PAD_VIEW != 0;
+        // L1 alone switches the flight mode, on release, as Liftoff's mode switch does; L1 + R1
+        // is the land chord, so R1 joining in at any point cancels the switch.
+        let held = shared.pad_held;
+        if paused {
+            shared.l1_alone = false;
+        } else {
+            if pressed & PAD_L1 != 0 {
+                shared.l1_alone = held & PAD_R1 == 0;
+            }
+            if held & PAD_R1 != 0 {
+                shared.l1_alone = false;
+            }
+            if shared.l1_alone && held & PAD_L1 == 0 {
+                shared.l1_alone = false;
+                r.flight_mode = true;
+            }
+        }
         r.preset_step += i32::from(pressed & PAD_NEXT != 0) - i32::from(pressed & PAD_PREV != 0);
         let requests = std::mem::take(&mut shared.requests);
         let playing = shared.playing;
@@ -513,6 +540,12 @@ impl Hooks for Mod {
             if requests.view {
                 shared.showcase = None;
                 shared.view = shared.view.next();
+            }
+            if requests.flight_mode {
+                let mode = drone.flight_mode().next();
+                drone.controller_config.flight_mode = mode;
+                settings::choose_flight_mode(host, mode);
+                shared.mode_switched = Some(Instant::now());
             }
         }
 
@@ -721,6 +754,7 @@ impl Hooks for Mod {
             pad: shared.sticks.is_some().then_some(shared.pad_family),
             time: shared.started.map_or(0.0, |s| s.elapsed().as_secs_f32()),
             setup_key: &settings::setup_key_name(host),
+            mode_switched: shared.mode_switched.map(|t| t.elapsed().as_secs_f32()),
         };
         osd::draw(&mut *event.batch, &osd);
     }

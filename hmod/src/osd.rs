@@ -2,7 +2,7 @@
 //! artificial horizon in the middle, battery and timer in the corners, speed, altitude and the
 //! way home at the bottom, warnings in the centre, and the drone's card while it waits to arm.
 
-use crate::drone::{DroneState, GimbalHud, HudPainter, Preset};
+use crate::drone::{DroneState, FlightMode, GimbalHud, HudPainter, Preset};
 use crate::setup::model::{LINK_CRITICAL, LINK_LOW};
 use mod_api::DrawContext;
 
@@ -44,7 +44,12 @@ pub struct Osd<'a> {
     pub time: f32,
     /// The setup key's name as Controls shows it (`J`), for the hints.
     pub setup_key: &'a str,
+    /// Seconds since the flight mode was switched, while the switch is news.
+    pub mode_switched: Option<f32>,
 }
+
+/// How long the OSD calls out a flight mode switch in the middle of the screen, seconds.
+pub const MODE_CALLOUT: f32 = 1.5;
 
 pub(crate) fn text(d: &mut dyn DrawContext, s: &str, x: f32, y: f32, color: u32) {
     d.text(s, [x, y], color, true);
@@ -554,6 +559,15 @@ pub fn draw(d: &mut dyn DrawContext, osd: &Osd<'_>) {
     text_right(d, &lq, w - 6.0, 6.0, lq_color);
     signal_bars(d, w - 6.0 - lq_w - 15.0, 14.0, osd.link, lq_color);
     text_right(d, osd.view, w - 6.0, 17.0, DIM);
+    // The flight mode, as a Betaflight OSD shows it; a switch is called out mid-screen too.
+    let mode = s.flight_mode();
+    let mode_color = if mode == FlightMode::Acro { DIM } else { AMBER };
+    text(d, mode.osd(), 6.0, 17.0, mode_color);
+    if let Some(t) = osd.mode_switched.filter(|t| *t < MODE_CALLOUT) {
+        let fade = ((MODE_CALLOUT - t) / 0.4).min(1.0);
+        let alpha = ((fade * 255.0) as u32) << 24;
+        text_centre(d, mode.osd(), cx, cy - 40.0, alpha | (WHITE & 0x00FF_FFFF));
+    }
 
     // Battery, bottom left.
     let cells = s.physics.cells().max(1) as f32;
