@@ -35,7 +35,7 @@
   "fpvhorizon.setting.drone": "Drone",
   "fpvhorizon.setting.custom_build": "Custom Build (use the Build sliders)",
   "fpvhorizon.setting.show_sticks": "Show Stick Gimbals",
-  "fpvhorizon.setting.range": "Video Range (blocks)",
+  "fpvhorizon.setting.range": "Video Range (blocks; all the way right: unlimited)",
   "fpvhorizon.setting.build_camera_angle": "Build: Camera Angle (degrees)",
   "fpvhorizon.setting.build_efficiency": "Build: Prop Efficiency",
   "fpvhorizon.setting.build_battery_mah": "Build: Battery (mAh)",
@@ -50,5 +50,8 @@
   "fpvhorizon.fisheye.light": "Light",
   "fpvhorizon.fisheye.medium": "Medium",
   "fpvhorizon.fisheye.strong": "Strong",
-  "fpvhorizon.key.setup": "Open FPV Horizon Setup"
+  "fpvhorizon.key.setup": "Open FPV Horizon Setup",
+  "fpvhorizon.setting.load_chunks": "Load the World Around the Drone (single player)",
+  "fpvhorizon.setting.battery_sim": "Battery Drain and Sag",
+  "fpvhorizon.setting.heat_sim": "Motor Heat"
 }

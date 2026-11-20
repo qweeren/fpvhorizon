@@ -1427,6 +1427,26 @@ fn hero_link(d: &mut dyn DrawContext, host: &dyn ClientHost, live: &Live, card: 
         Value::Range(v) => v,
         _ => 160.0,
     };
+    if model::range_unlimited(range) {
+        // No range: the badge the OSD would show is always the calm one.
+        let words = if live.drone_out { format!("{:.0}m from you", live.distance) } else { "The link never fades".to_string() };
+        let title = "NO RANGE LIMIT";
+        let tw = d.text_width(title) + 18.0;
+        let pw = tw.max(d.text_width(&words)) + 16.0;
+        let (px, by, ph) = (cx - pw / 2.0, y + 6.0, 27.0);
+        d.fill([px, by, pw, ph], GLASS);
+        d.fill([px, by, pw, 1.0], AMBER);
+        d.fill([px, by + ph - 2.0, pw, 2.0], AMBER);
+        osd::signal_bars(d, cx - tw / 2.0, by + 12.0, 100.0, WHITE);
+        osd::text(d, title, cx - tw / 2.0 + 18.0, by + 4.0, WHITE);
+        osd::text_centre(d, &words, cx, by + 14.0, DIM);
+        let note = "Fly as far as you like: the picture never breaks up and the drone never fails safe. Drag the range left for a real video link.";
+        for (n, l) in clipped_lines(d, note, w - 16.0, 3).iter().enumerate() {
+            osd::text_centre(d, l, cx, y + 44.0 + n as f32 * 10.0, FAINT);
+        }
+        osd::text_right(d, if live.drone_out { "YOUR DRONE" } else { "PREVIEW" }, x + w - 5.0, y + 4.0, 0x60FF_FFFF);
+        return;
+    }
     // The track runs to a little past the range, where the link is lost.
     let reach = range * 1.1;
     let (demo, distance) = if live.drone_out {

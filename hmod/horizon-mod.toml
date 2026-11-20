@@ -70,6 +70,28 @@ cancellable = true
 helper = "src/mixins/pad.rs"
 bindings = [{ name = "down", ty = "bool", value = "down" }]
 
+# In a single-player world the world loads, generates and draws around the drone while its camera
+# is on it, so it can fly anywhere: the world's streaming centre (and far terrain's) follows the
+# drone. The mod API has no way to move it (a mod's chunk areas aren't drawn in the player's own
+# level), so these change the player's block x and z where `update_world` takes them for both.
+[[native.mixin]]
+id = "stream_x"
+target = "horizon_client::game::world::world_update::Game<'_>::update_world"
+kind = "MODIFY_EXPRESSION_VALUE"
+selector = "p.position.x.floor() as i32"
+require = 2
+helper = "src/mixins/stream_x.rs"
+bindings = [{ name = "value", ty = "i32", value = "$value" }]
+
+[[native.mixin]]
+id = "stream_z"
+target = "horizon_client::game::world::world_update::Game<'_>::update_world"
+kind = "MODIFY_EXPRESSION_VALUE"
+selector = "p.position.z.floor() as i32"
+require = 2
+helper = "src/mixins/stream_z.rs"
+bindings = [{ name = "value", ty = "i32", value = "$value" }]
+
 # The FPV camera's fisheye lens: a post chain (assets/fpvhorizon/post_effect/fisheye_*.json)
 # added after the frame's own, as a creeper's view is added while spectating one. The mod API
 # has no way to request a post effect, so this adds it to the list the frame is drawn through.

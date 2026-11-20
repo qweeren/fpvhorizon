@@ -59,6 +59,10 @@ pub struct AdvancedPhysicsCore {
 
     /// Charge drawn from the pack, mAh.
     pub mah_used: f32,
+    /// The pack drains and sags (else a full pack that never runs down).
+    pub battery_sim: bool,
+    /// The motors heat under load (else they stay at the air's temperature).
+    pub heat_sim: bool,
     /// The current the pack is giving, amps.
     pub pack_current: f32,
 
@@ -107,6 +111,8 @@ impl Default for AdvancedPhysicsCore {
             motor_vel: [0.0; 4],
             motor_pos: [0.0; 4],
             mah_used: 0.0,
+            battery_sim: true,
+            heat_sim: true,
             pack_current: 0.0,
             velocity: Vec3f::ZERO,
             drone_up: Vec3f::UP,
@@ -257,8 +263,10 @@ impl AdvancedPhysicsCore {
 
                 let use_vbat = (if motor % 2 == 0 { -1.0 } else { 1.0 }) * vbat;
                 let next_motor_vel = self.advance_motor_vel(motor, self.motor_vel[motor], time_step, use_vbat, self.temp[motor]);
-                self.internal_energy[motor] = self.get_next_internal_energy(motor, self.internal_energy[motor], self.temp[motor], use_vbat, self.motor_vel[motor], time_step);
-                self.temp[motor] = self.get_next_temp(self.internal_energy[motor]);
+                if self.heat_sim {
+                    self.internal_energy[motor] = self.get_next_internal_energy(motor, self.internal_energy[motor], self.temp[motor], use_vbat, self.motor_vel[motor], time_step);
+                    self.temp[motor] = self.get_next_temp(self.internal_energy[motor]);
+                }
                 self.motor_pos[motor] = Self::wrap_angle(self.motor_pos[motor] + self.motor_vel[motor] * time_step);
                 self.motor_vel[motor] = next_motor_vel;
             }
@@ -279,7 +287,23 @@ impl AdvancedPhysicsCore {
         }
 
         *vel = self.velocity;
-        self.mah_used += charge * 1000.0 / 3600.0;
+        if self.battery_sim {
+            self.mah_used += charge * 1000.0 / 3600.0;
+        }
+    }
+
+    /// Turns the battery's and the motors' heat simulation on or off. Turning heat off cools
+    /// the motors at once; turning the battery off fills the pack.
+    pub fn set_simulation(&mut self, battery: bool, heat: bool) {
+        if !battery && self.battery_sim {
+            self.mah_used = 0.0;
+        }
+        if !heat && self.heat_sim {
+            self.temp = [REF_TEMP; 4];
+            self.internal_energy = [0.0; 4];
+        }
+        self.battery_sim = battery;
+        self.heat_sim = heat;
     }
 
     /// A full pack again.
@@ -319,6 +343,9 @@ impl AdvancedPhysicsCore {
     /// through their internal resistance (about 6 mΩ a cell for a 1300 mAh pack).
     pub fn pack_voltage(&self) -> f32 {
         let cells = self.battery_cells as f32;
+        if !self.battery_sim {
+            return cells * Self::cell_open_voltage(1.0);
+        }
         let cell_resistance = 0.006 * 1300.0 / self.battery_mah.max(50.0);
         let cell = Self::cell_open_voltage(self.charge()) - self.pack_current * cell_resistance;
         cells * cell.max(2.8)
@@ -709,6 +736,30 @@ mod tests {
         eprintln!("1 min full throttle: {:.0} mAh, {:.1} A, {:.2} V (rested {:.2} V)", core.mah_used, core.pack_current, core.pack_voltage(), rested);
         assert!(core.mah_used > 100.0, "a minute at full throttle uses real charge");
         assert!(core.pack_voltage() < rested, "the pack sags and drains");
+    }
+
+    #[test]
+    fn battery_and_heat_can_be_switched_off() {
+        let b = DroneBuildConfig::default();
+        let p = PhysicsConfig::default();
+        let mut core = AdvancedPhysicsCore::default();
+        core.reset(0.0, &b, &p);
+        core.set_simulation(false, false);
+        let full = core.pack_voltage();
+        let mut vel = Vec3f::ZERO;
+        for _ in 0..1200 {
+            core.step(0.05, 1.0, Quat::IDENTITY, &mut vel, &b, &p);
+        }
+        assert_eq!(core.mah_used, 0.0, "no drain");
+        assert_eq!(core.pack_voltage(), full, "no sag");
+        assert!(core.temp.iter().all(|t| *t == REF_TEMP), "no heat");
+        assert!(!core.is_overheat());
+        core.set_simulation(true, true);
+        for _ in 0..200 {
+            core.step(0.05, 1.0, Quat::IDENTITY, &mut vel, &b, &p);
+        }
+        assert!(core.mah_used > 0.0 && core.pack_voltage() < full, "back on, it drains and sags");
+        assert!(core.temp.iter().all(|t| *t > REF_TEMP), "back on, it heats");
     }
 
     #[test]

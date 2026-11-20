@@ -21,8 +21,20 @@ pub const LINK_LOW: f32 = 40.0;
 /// Link quality below which the badge turns red and says to turn back.
 pub const LINK_CRITICAL: f32 = 15.0;
 
-/// Link quality, 0..100, at `distance` blocks from the pilot with the link lost at `range`.
+/// The video range's top stop: no range limit, the link never fades.
+pub const RANGE_UNLIMITED: f64 = 520.0;
+
+/// Whether `range` (the setting's value) is the top stop, with no limit.
+pub fn range_unlimited(range: f64) -> bool {
+    range >= RANGE_UNLIMITED
+}
+
+/// Link quality, 0..100, at `distance` blocks from the pilot with the link lost at `range`
+/// (always full with no range limit).
 pub fn link_quality(distance: f64, range: f64) -> f32 {
+    if range_unlimited(range) {
+        return 100.0;
+    }
     let x = distance / range.max(1.0);
     (100.0 * ((1.0 - x) / (1.0 - LINK_FADE_START)).clamp(0.0, 1.0)) as f32
 }
@@ -53,6 +65,8 @@ pub enum Unit {
     Inches,
     /// Metres, written in millimetres with this many decimals.
     Millimetres(u8),
+    /// The video range in metres, its top stop written as no limit.
+    Range,
 }
 
 impl Unit {
@@ -67,6 +81,8 @@ impl Unit {
             Unit::DiameterInches => format!("{:.1} in", v * 2.0 / 0.0254),
             Unit::Inches => format!("{:.1} in", v / 0.0254),
             Unit::Millimetres(d) => format!("{:.*} mm", usize::from(d), v * 1000.0),
+            Unit::Range if range_unlimited(v) => "Unlimited".to_string(),
+            Unit::Range => format!("{v:.0} m"),
         }
     }
 }
@@ -297,7 +313,10 @@ static SETTINGS: LazyLock<Vec<Setting>> = LazyLock::new(|| {
         toggle("throttle_centre_hover", "Stick centre is hover", "A gamepad's throttle stick springs back to centre: let centre hold a hover.", true),
         toggle("mode_3d", "3D mode", "Reversible motors: the lower half of the throttle flies upside down.", false),
         range("deadzone", "Stick deadzone", "Stick movement ignored around centre, so a worn stick doesn't drift.", (0.0, 0.3, 0.01, f(c::DEFAULT_DEADZONE)), Unit::Percent),
-        range("range", "Video range", "How far the video link reaches before the picture is lost and the drone disarms.", (32.0, 512.0, 8.0, 160.0), Unit::Suffix(0, " m")),
+        range("range", "Video range", "How far the video link reaches before the picture is lost and the drone disarms. All the way right: unlimited.", (32.0, RANGE_UNLIMITED, 8.0, 160.0), Unit::Range),
+        toggle("load_chunks", "Load the world around the drone", "Single player: the world loads and draws around the drone instead of you, so it can fly anywhere.", true),
+        toggle("battery_sim", "Battery drain and sag", "The pack drains as you fly and its voltage sags under load. Off: a full pack that never runs down.", true),
+        toggle("heat_sim", "Motor heat", "Motors heat up under load and lose power when hot. Off: they stay cool.", true),
         range("motor_volume", "Motors", "How loud the motors whine.", (0.0, 1.0, 0.05, 0.6), Unit::Percent),
         range("wind_volume", "Wind", "How loud the wind rushes past at speed.", (0.0, 1.0, 0.05, 0.8), Unit::Percent),
     ];
@@ -468,10 +487,17 @@ pub fn rows(page: Page, custom: bool) -> Vec<Row> {
             Row::Header("KEYS"),
             Row::Keys,
         ],
-        Page::Link => vec![Row::Hero(Hero::Link), s("range")],
+        Page::Link => vec![Row::Hero(Hero::Link), s("range"), s("load_chunks")],
         Page::Sound => vec![s("motor_volume"), s("wind_volume")],
         Page::Physics => {
-            let mut rows = vec![Row::Hero(Hero::Physics), s("gravity"), Row::Header("AIR AND MOTORS")];
+            let mut rows = vec![
+                Row::Hero(Hero::Physics),
+                Row::Header("SIMULATION"),
+                s("battery_sim"),
+                s("heat_sim"),
+                s("gravity"),
+                Row::Header("AIR AND MOTORS"),
+            ];
             rows.extend(PhysicsParam::ALL.map(|p| s(&format!("physics_{}", p.key()))));
             rows
         }
@@ -591,7 +617,7 @@ mod tests {
         assert_eq!(s.snap(1.2251), 1.225);
         assert_eq!(s.encode(Value::Range(0.25000000001)), Some("0.25".into()));
         let r = setting("range");
-        assert_eq!(r.snap(1000.0), 512.0);
+        assert_eq!(r.snap(1000.0), RANGE_UNLIMITED);
         assert_eq!(r.snap(-5.0), 32.0);
         assert_eq!(r.snap(165.0), 168.0);
         let v = setting("motor_volume");
@@ -650,6 +676,16 @@ mod tests {
                 assert_eq!(setting(key).snap(v), v, "{} {key}", p.name);
             }
         }
+    }
+
+    #[test]
+    fn the_top_range_stop_is_unlimited() {
+        let r = setting("range");
+        assert_eq!(r.at_fraction(1.0), RANGE_UNLIMITED);
+        assert_eq!(r.format(Value::Range(RANGE_UNLIMITED)), "Unlimited");
+        assert_eq!(r.format(Value::Range(512.0)), "512 m");
+        assert_eq!(link_quality(1.0e6, RANGE_UNLIMITED), 100.0);
+        assert!(link_quality(600.0, 512.0) <= 0.0);
     }
 
     #[test]

@@ -3,6 +3,11 @@
 // where the player stands and looks. The drone itself lives in the mod's crate.
 
 use crate::game::{Game, Screen};
+use std::sync::Mutex;
+
+/// The square kept loaded round the standing pilot while the world follows the drone, as the
+/// streamer's extra area: (chunk, radius).
+static PILOT_AREA: Mutex<Option<((i32, i32), i32)>> = Mutex::new(None);
 use horizon_client::gamepad::{Button, GlyphStyle, MenuJob};
 use horizon_client::pad_glyph::Glyph;
 
@@ -34,6 +39,22 @@ pub fn tick(game: &mut Game<'_>) {
         alive: !p.health.dead_or_dying(),
     });
     shared.playing = game.title.is_none() && !game.pause && matches!(game.screen, Screen::Playing);
+    // Single player only: on a server (or a LAN host's world) the server decides what loads.
+    shared.local_world = game.remote.is_none() && game.lan.is_none() && game.serving.is_none();
+
+    // While the world loads round the drone, the pilot's own chunks stay loaded (not drawn), so
+    // the body that stands there never sits in an unloaded chunk.
+    let mut pilot_area = PILOT_AREA.lock().unwrap();
+    if let Some(old) = pilot_area.take()
+        && let Some(i) = game.streaming.extra.iter().position(|area| *area == old)
+    {
+        game.streaming.extra.remove(i);
+    }
+    if let (Some(_), Some(p)) = (shared.stream_centre, &game.player) {
+        let area = (((p.position.x.floor() as i32) >> 4, (p.position.z.floor() as i32) >> 4), 2);
+        game.streaming.extra.push(area);
+        *pilot_area = Some(area);
+    }
 
     // Mode 2: left stick throttle and yaw, right stick pitch and roll, while the pad is in use.
     let pad = game.pad.state;

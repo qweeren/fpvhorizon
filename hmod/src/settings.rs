@@ -93,6 +93,9 @@ pub fn apply(host: &dyn ClientHost, state: &mut DroneState) {
     if let Some(g) = f(host, "gravity") {
         state.physics.set_gravity(g);
     }
+    let battery = host.setting_bool("battery_sim").unwrap_or(true);
+    let heat = host.setting_bool("heat_sim").unwrap_or(true);
+    state.physics.set_simulation(battery, heat);
     let cfg = &mut state.controller_config;
     for axis in AXES {
         let (a, i) = (axis.key(), axis as usize);
