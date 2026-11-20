@@ -24,6 +24,10 @@
       "L1+R1" in `hmod/src/osd.rs`), and show only the keyboard or the gamepad hint depending on which is in use
 - [x] Fisheye lens on the FPV camera (Off / Light / Medium / Strong in the settings)
 - [x] Setup screen (J, a pad's Select, or the pause menu): every setting with live previews, in the OSD's style
+- [x] Unlimited video range (the slider's top stop), and battery and motor heat simulation toggles
+- [ ] Load the world around the drone in single player: waits on a Horizon mod API to move where a player's
+      chunks stream from ([horizon#19219](https://github.com/horizon-rust/horizon/issues/19219)); neither chunk
+      tickets, chunk areas nor mixins can do it on the current build
 - [ ] Sign releases with minisign
 
 ## Mobile: Starling (Android)
