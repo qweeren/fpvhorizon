@@ -37,9 +37,10 @@ or issues, posting comments or reviews. Draft the text and let the owner post or
   `[native].horizon`.
 - Local in-game builds: `horizon-launcher native-build --instance <id> --version <tag>`. It takes ~5 min cached,
   never more than 15-20. Always run it with a 20-minute cap and a stall check (log quiet ~5 min with no
-  rustc/cargo = hung, kill it). It sometimes hangs at "Compiling fpvhorizon (1 of 1)", possibly waiting for
-  native-code trust for a new version: don't pass `--trust-native-code` (a security setting); ask the owner to
-  build once from the launcher window.
+  rustc/cargo = hung, kill it). When it stalls at "Compiling fpvhorizon (1 of 1)", read
+  `%APPDATA%\horizon-launcher
+ativeuild.log`: the launcher hides compile errors there and hangs instead of
+  failing (seen with E0603 private imports on launcher 0.2.81; fixed in launcher 0.2.82, horizon#18509).
 - Cloud sessions can't push tags (proxy 403). Release through the workflow's `release` input instead.
 - The Horizon pin must match `horizon-rust/horizon-mods`'s `.github/horizon-rev` for the registry to accept a build.
 
