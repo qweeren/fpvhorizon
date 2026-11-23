@@ -84,6 +84,10 @@ jobs:
           install -Dm755 cargo-sunrise-mod "$HOME/.local/bin/cargo-sunrise-mod"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # The game links these on Linux, so the build needs their development files.
+      - name: Install udev and ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libasound2-dev
+
       - name: Check
         working-directory: smod
         run: cargo sunrise-mod check
