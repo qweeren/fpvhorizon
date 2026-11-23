@@ -1,0 +1,9 @@
+[package]
+name = "mod-fpvhorizon"
+version = "1.2.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# The pinned SDK's API crate, fetched into .sunrise/sdk/ by any `cargo sunrise-mod` command.
+sunrise-mod-api = { path = ".sunrise/sdk/api/crates/sunrise-mod-api" }

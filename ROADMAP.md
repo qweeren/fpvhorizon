@@ -18,6 +18,16 @@
 - [x] Release `v1.2.0`: flight controller simulation, tested in-game on FPVTEST
 - [ ] Registry review and merge: [horizon-mods#1467](https://github.com/horizon-rust/horizon-mods/pull/1467)
 
+## Sunrise
+
+[Sunrise](https://github.com/sunrise-org/sunrise) is a Rust rewrite of Minecraft Java with its own mod format, `.smod`.
+
+- [x] `smod/` package generated from `hmod/` (`tools/sync_smod.py`), pinned to Nightly 2026-11-20 (9425651); `cargo sunrise-mod check` passes
+- [x] **Build for Sunrise** workflow: signed tool, `cargo sunrise-mod build`, SHA-256, GitHub release `smod-v<version>`
+- [ ] Test the `.smod` in-game on Sunrise (the Horizon build is tested; the Sunrise mixin targets are not yet)
+- [ ] Register the mod on the Sunrise registry ([sunrise-org/sunrise-mods](https://github.com/sunrise-org/sunrise-mods)):
+      needs `page.toml`, screenshots and an icon, then the registration pull request (the owner posts it)
+
 ## Polish after 1.0
 
 - [ ] Final icon and screenshots for the mod page

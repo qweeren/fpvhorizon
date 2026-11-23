@@ -26,6 +26,10 @@ or issues, posting comments or reviews. Draft the text and let the owner post or
   `src/mixins/`, assets in `assets/fpvhorizon/`.
 - `hmod/src/drone/`: the game-agnostic simulation (physics, controller, collision, presets). Unit-tested on its own
   through `tools/standalone.rs`.
+- `smod/`: the same mod as a Sunrise `.smod` package. Its `src/`, `assets/` and `LICENSE` are generated from `hmod/` by
+  `python tools/sync_smod.py` (never edit them by hand); `sunrise-mod.toml` and `Cargo.toml` are hand-kept. Built by
+  `.github/workflows/release-smod.yml` (tags `smod-v<version>`, `cargo sunrise-mod build`). `cargo sunrise-mod` lives in
+  `D:\Sunrise\tools`; building locally on Windows also needs MinGW (`as.exe`, `dlltool.exe`), so build in CI.
 - `tools/`: `package.py` (quick local package/install), asset generators.
 - `art/icon.png`: the registry icon (temporary).
 

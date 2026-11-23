@@ -1,0 +1,75 @@
+id = "fpvhorizon"
+name = "FPV Horizon"
+version = "1.2.0"
+description = "Fly real FPV drones as in a sim. H (L1+R1) puts your drone down and takes you to its camera; R (Triangle) arms; V views; [ ] changes drone; Backspace resets; J opens the setup screen."
+authors = ["Eren"]
+license = "GPL-3.0-only"
+side = "client"
+
+# Mixins change game code, so this mod is pinned to the exact game build it is made for.
+# Move the pin with `cargo sunrise-mod update`, never by hand.
+[native]
+game = "26.3"
+sunrise = "94256510f74e6843754e0a93fd9e4da7e45b1056"
+
+# The mod API has no write to the local player's position, velocity or flight, so the drone
+# moves the player from a support module, run after each client tick.
+[[native.module]]
+id = "adapter"
+file = "crates/sunrise-client/src/game/native_hooks/client_tick_post.rs"
+name = "fpvhorizon_adapter"
+source = "src/adapter.rs"
+
+[[native.mixin]]
+id = "tick"
+target = "sunrise_client::game::native_hooks::client_tick_post::Game<'_>::native_client_tick_post"
+kind = "HEAD"
+helper = "src/mixins/tick.rs"
+bindings = [{ name = "game", ty = "&mut Game<'_>", value = "&mut *self" }]
+
+# While flying, the mouse (and a pad's look stick) turns the drone, not the player's head:
+# look_turn is the one way both reach Entity.turn.
+[[native.mixin]]
+id = "turn"
+target = "sunrise_client::game::pointer_capture::Game<'_>::look_turn"
+kind = "HEAD"
+cancellable = true
+helper = "src/mixins/turn.rs"
+bindings = [
+  { name = "xo", ty = "f64", value = "x" },
+  { name = "yo", ty = "f64", value = "y" },
+]
+
+# The camera rolls with the drone. camera_pose sets only yaw and pitch, and camera_shake is
+# capped at 10 degrees, so the roll goes into the view-bob matrix (bob, then the camera shake)
+# the game multiplies into the projection. This changes the shake call's value inside it.
+[[native.mixin]]
+id = "roll"
+target = "sunrise_client::game::fov::Game<'_>::bob_matrix"
+kind = "MODIFY_EXPRESSION_VALUE"
+selector = "self.native_shake_matrix(partial)"
+require = 1
+ordinal = 0
+helper = "src/mixins/roll.rs"
+bindings = [{ name = "value", ty = "glam::Mat4", value = "$value" }]
+
+# While a drone is out the pad flies it: its buttons must not also do their game actions
+# (Triangle opens the inventory, L1/R1 cycle the hotbar...). Presses stop here; releases go
+# through so nothing stays held. The sticks reach the drone through the tick module.
+[[native.mixin]]
+id = "pad"
+target = "sunrise_client::game::pad::Game<'_>::pad_action"
+kind = "HEAD"
+cancellable = true
+helper = "src/mixins/pad.rs"
+bindings = [{ name = "down", ty = "bool", value = "down" }]
+
+# The FPV camera's fisheye lens: a post chain (assets/fpvhorizon/post_effect/fisheye_*.json)
+# added after the frame's own, as a creeper's view is added while spectating one. The mod API
+# has no way to request a post effect, so this adds it to the list the frame is drawn through.
+[[native.mixin]]
+id = "fisheye"
+target = "sunrise_client::game::screen_backgrounds::Game<'_>::requested_post_effects"
+kind = "RETURN"
+helper = "src/mixins/fisheye.rs"
+bindings = [{ name = "value", ty = "Vec<String>", value = "$value" }]

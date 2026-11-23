@@ -1,6 +1,6 @@
 # FPV Horizon
 
-FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic quadcopter physics, Betaflight-style rates, and acro flight mechanics inside Horizon.
+FPV Horizon is a native Horizon mod for flying FPV drones. It brings realistic quadcopter physics, Betaflight-style rates, and acro flight mechanics inside Horizon. It also ships as a `.smod` for [Sunrise](https://github.com/sunrise-org/sunrise), built from the same code.
 
 ## Features
 
@@ -59,6 +59,7 @@ arrows and a pad's D-pad, A, LB/RB and B work too. The same settings are also on
 - `hmod/`: the Horizon mod: `horizon-mod.toml`, the mod crate in `src/`, its mixins in `src/mixins/`, and assets.
 - `hmod/src/drone/`: the game-agnostic drone simulation (physics, controller, collision, presets), unit-tested on its own.
 - `hmod/src/setup/`: the setup screen; `model.rs` is its settings table and maths, unit-tested with the drone.
+- `smod/`: the same mod as a Sunrise package: `sunrise-mod.toml` (the Sunrise pin and mixin targets) and `Cargo.toml` are hand-kept; `src/`, `assets/` and `LICENSE` are generated from `hmod/` by `python tools/sync_smod.py`, so edit `hmod/` and run it (`--check` fails if `smod/` is out of date).
 - `tools/`: packaging and asset-generation scripts.
 
 ## Building
@@ -88,6 +89,10 @@ python tools/package.py --install
 Push a tag matching the version in `hmod/horizon-mod.toml` (for example `v0.9.0`). GitHub Actions builds the `.hmod` with `cargo horizon-mod build`, runs `cargo horizon-mod check` on it, and attaches it to a GitHub Release with its SHA-256. `0.x` versions are marked as pre-releases.
 
 Without pushing a tag: Actions > Build > Run workflow on `master` with **release** ticked creates the `v<version>` tag on that commit and publishes the same release. It refuses a version that is already released.
+
+### Sunrise
+
+The Sunrise package is built by the **Build for Sunrise** workflow with Sunrise's own `cargo sunrise-mod build` against the game build `smod/sunrise-mod.toml` pins. Run it from Actions on `master` to just build (downloadable artifact), or tick **release** to also create the `smod-v<version>` tag and publish `fpvhorizon.smod` with its SHA-256. A tag `smod-v<version>` pushed by hand does the same. Locally, `cargo sunrise-mod check` in `smod/` type-checks it; `build` needs a MinGW toolchain on Windows.
 
 ## Credits
 
